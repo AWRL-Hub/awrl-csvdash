@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Water Monitoring System</title>
+    <!-- Firebase SDK -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-app-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-database-compat.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/9.23.0/firebase-analytics-compat.min.js"></script>
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.0/chart.min.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Water Monitoring System</h1>
+            <div class="last-update">Last Update: <span id="lastUpdate">-</span></div>
+        </div>
+
+        <div class="data-cards">
+            <div class="card">
+                <h2>Water Depth</h2>
+                <div class="value" id="depthValue">-</div>
+                <div>cm</div>
+            </div>
+            <div class="card">
+                <h2>Temperature</h2>
+                <div class="value" id="temperatureValue">-</div>
+                <div>°C</div>
+            </div>
+            <div class="card">
+                <h2>Turbidity</h2>
+                <div class="value" id="turbidityValue">-</div>
+                <div>NTU</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="historyChart"></canvas>
+        </div>
+
+        <button class="button" onclick="downloadData()">Download Data (CSV)</button>
+    </div>
+
+    <!-- Custom JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
