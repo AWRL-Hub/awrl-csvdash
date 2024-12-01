@@ -15,7 +15,6 @@ let depthChart, temperatureChart, turbidityChart;
 let globalData = [];
 const SPECIFIC_UID = "VI0NhvakSSZz3Sb3ZB44TOHBEWB3";
 
-// Chart configuration
 const chartConfig = {
     type: 'line',
     options: {
@@ -49,7 +48,8 @@ const chartConfig = {
                 },
                 ticks: {
                     maxRotation: 0,
-                    autoSkip: false,
+                    autoSkip: true,
+                    maxTicksLimit: 24,  // Limit the number of x-axis ticks to 24 (hours)
                     callback: function(value, index) {
                         const hour = this.getLabelForValue(value).split(':')[0];
                         return hour.padStart(2, '0');
@@ -71,6 +71,12 @@ const chartConfig = {
                 border: {
                     display: true
                 }
+            }
+        },
+        layout: {
+            padding: {
+                left: 10,
+                right: 25
             }
         }
     }
