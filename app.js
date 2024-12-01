@@ -30,12 +30,22 @@ const chartConfig = {
                 display: false
             },
             tooltip: {
+                backgroundColor: 'white',
+                titleColor: 'black',
+                bodyColor: 'black',
+                borderColor: '#ddd',
+                borderWidth: 1,
+                padding: 10,
+                displayColors: false,
                 callbacks: {
                     title: function(context) {
-                        return context[0].label;
+                        const hour = context[0].label.padStart(2, '0');
+                        return `${hour}:00 WIB`;
                     },
                     label: function(context) {
-                        return context.formattedValue;
+                        const value = context.raw.toFixed(1);
+                        const label = context.dataset.label;
+                        return `${label}: ${value}°C`;
                     }
                 }
             }
@@ -47,38 +57,49 @@ const chartConfig = {
                     display: false,
                     drawBorder: false
                 },
-                min: '00',
-                max: '24',
+                min: 0,
+                max: 23,
                 ticks: {
+                    stepSize: 2,
                     maxRotation: 0,
                     autoSkip: false,
-                    callback: function(value, index) {
-                        // Create fixed labels from 00 to 24
-                        return index.toString().padStart(2, '0');
+                    padding: 5,
+                    color: '#666',
+                    font: {
+                        size: 11
                     }
                 },
                 border: {
-                    display: true
+                    display: true,
+                    color: '#ddd'
                 }
             },
             y: {
                 display: true,
+                position: 'left',
                 grid: {
                     display: false,
                     drawBorder: false
                 },
                 ticks: {
-                    padding: 10
+                    padding: 10,
+                    color: '#666',
+                    font: {
+                        size: 11
+                    }
                 },
                 border: {
-                    display: true
+                    display: true,
+                    color: '#ddd'
                 }
             }
         },
         layout: {
             padding: {
-                left: 10,
-                right: 25
+                top: 10,
+                right: 10,
+                bottom: 10,
+                left: 10
             }
         }
     }
@@ -119,15 +140,23 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeCharts() {
+    const chartHeight = '250px';
+
+    // Set height for chart containers
+    document.querySelectorAll('.chart-container').forEach(container => {
+        container.style.height = chartHeight;
+    });
+
     // Initialize Depth Chart
     depthChart = new Chart(document.getElementById('depthChart').getContext('2d'), {
         ...chartConfig,
         data: {
-            labels: [],
+            labels: Array.from({length: 24}, (_, i) => i.toString()),
             datasets: [{
+                label: 'Depth',
                 data: [],
                 borderColor: '#1a73e8',
-                tension: 0,
+                tension: 0.1,
                 fill: false,
                 pointRadius: 0,
                 borderWidth: 1.5
@@ -139,11 +168,12 @@ function initializeCharts() {
     temperatureChart = new Chart(document.getElementById('temperatureChart').getContext('2d'), {
         ...chartConfig,
         data: {
-            labels: [],
+            labels: Array.from({length: 24}, (_, i) => i.toString()),
             datasets: [{
+                label: 'Temperature',
                 data: [],
                 borderColor: '#ea4335',
-                tension: 0,
+                tension: 0.1,
                 fill: false,
                 pointRadius: 0,
                 borderWidth: 1.5
@@ -155,11 +185,12 @@ function initializeCharts() {
     turbidityChart = new Chart(document.getElementById('turbidityChart').getContext('2d'), {
         ...chartConfig,
         data: {
-            labels: [],
+            labels: Array.from({length: 24}, (_, i) => i.toString()),
             datasets: [{
+                label: 'Turbidity',
                 data: [],
                 borderColor: '#34a853',
-                tension: 0,
+                tension: 0.1,
                 fill: false,
                 pointRadius: 0,
                 borderWidth: 1.5
