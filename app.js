@@ -2,7 +2,7 @@
 const firebaseConfig = {
     apiKey: "AIzaSyCTjgXOengQjinmKz5hB7IwaLN1cVylOBs",
     authDomain: "awrl-49c31.firebaseapp.com",
-    databaseURL: "https://awrl-49c31-default-rtdb.asia-southeast1.firebaseedatabase.app",
+    databaseURL: "https://awrl-49c31-default-rtdb.asia-southeast1.firebasedatabase.app",  // Fixed URL
     projectId: "awrl-49c31",
     storageBucket: "awrl-49c31.firebasestorage.app",
     messagingSenderId: "109887515682",
@@ -15,8 +15,73 @@ firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const analytics = firebase.analytics();
 
-// Reference to the data path in RTDB
-const dataPath = '/AWRLData/G7xF8BDezXQGkjfaKQ7QsxEVuAC3/Record';
+// Initialize Authentication
+firebase.auth().onAuthStateChanged((user) => {
+    if (user) {
+        console.log('User is signed in:', user.uid);
+        startDataListening(user.uid);
+    } else {
+        console.log('No user signed in, attempting anonymous sign-in');
+        firebase.auth().signInAnonymously()
+            .catch((error) => {
+                console.error('Anonymous sign-in error:', error);
+            });
+    }
+});
+
+function startDataListening(uid) {
+    // Log the path we're trying to access
+    const dataPath = `/AWRLData/${uid}/Record`;
+    console.log('Attempting to access data at path:', dataPath);
+
+    // Real-time data listener with error handling
+    database.ref(dataPath).limitToLast(100).on('value', 
+        (snapshot) => {
+            console.log('Data received:', snapshot.val());
+            const data = snapshot.val();
+            if (!data) {
+                console.log('No data available at this path');
+                return;
+            }
+
+            // Convert object to array and sort by timestamp
+            try {
+                globalData = Object.entries(data)
+                    .map(([key, value]) => ({
+                        timestamp: value.timestamp,
+                        depth: value.depth,
+                        temperature: value.temperature,
+                        turbidity_ntu: value.turbidity_ntu
+                    }))
+                    .sort((a, b) => new Date(a.timestamp.replace('_', ' ')) - new Date(b.timestamp.replace('_', ' ')));
+
+                // Update latest values
+                const latest = globalData[globalData.length - 1];
+                document.getElementById('depthValue').textContent = latest.depth.toFixed(1);
+                document.getElementById('temperatureValue').textContent = latest.temperature.toFixed(1);
+                document.getElementById('turbidityValue').textContent = latest.turbidity_ntu.toFixed(1);
+                document.getElementById('lastUpdate').textContent = formatTimestamp(latest.timestamp);
+
+                // Update chart
+                updateChart(globalData);
+            } catch (error) {
+                console.error('Error processing data:', error);
+            }
+        }, 
+        (error) => {
+            console.error('Database error:', error);
+        }
+    );
+}
+
+// Test database connection
+database.ref('.info/connected').on('value', (snapshot) => {
+    if (snapshot.val() === true) {
+        console.log('Connected to Firebase');
+    } else {
+        console.log('Not connected to Firebase');
+    }
+});
 
 // Initialize Chart
 const ctx = document.getElementById('historyChart').getContext('2d');
@@ -74,32 +139,6 @@ const chart = new Chart(ctx, {
 
 // Store data globally for download
 let globalData = [];
-
-// Real-time data listener
-database.ref(dataPath).limitToLast(100).on('value', (snapshot) => {
-    const data = snapshot.val();
-    if (!data) return;
-
-    // Convert object to array and sort by timestamp
-    globalData = Object.entries(data)
-        .map(([key, value]) => ({
-            timestamp: value.timestamp,
-            depth: value.depth,
-            temperature: value.temperature,
-            turbidity_ntu: value.turbidity_ntu
-        }))
-        .sort((a, b) => new Date(a.timestamp.replace('_', ' ')) - new Date(b.timestamp.replace('_', ' ')));
-
-    // Update latest values
-    const latest = globalData[globalData.length - 1];
-    document.getElementById('depthValue').textContent = latest.depth.toFixed(1);
-    document.getElementById('temperatureValue').textContent = latest.temperature.toFixed(1);
-    document.getElementById('turbidityValue').textContent = latest.turbidity_ntu.toFixed(1);
-    document.getElementById('lastUpdate').textContent = formatTimestamp(latest.timestamp);
-
-    // Update chart
-    updateChart(globalData);
-});
 
 function updateChart(data) {
     const labels = data.map(d => formatTimestamp(d.timestamp));
