@@ -25,13 +25,16 @@ const chartConfig = {
             mode: 'index',
         },
         plugins: {
+            legend: {
+                display: false  // This removes the legend
+            },
             tooltip: {
                 callbacks: {
                     title: function(context) {
                         return 'Time: ' + context[0].label;
                     },
                     label: function(context) {
-                        return context.dataset.label + ': ' + context.formattedValue;
+                        return context.formattedValue;  // Just show the value without label
                     }
                 }
             }
@@ -212,12 +215,13 @@ function formatTimestamp(timestamp) {
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
 }
 
+// Update the timestamp format for chart to show only time
 function formatTimestampForChart(timestamp) {
     const [datePart, timePart] = timestamp.split('_');
-    const [year, month, day] = datePart.split('-');
     const [hours, minutes] = timePart.split('-');
-    return `${day}/${month} ${hours}:${minutes}`;
+    return `${hours}:${minutes}`;
 }
+
 
 function downloadData() {
     if (globalData.length === 0) return;
