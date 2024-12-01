@@ -11,14 +11,13 @@ const firebaseConfig = {
 };
 
 // Initialize Firebase
-console.log('Initializing Firebase with config:', firebaseConfig);
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 
 // Specific User ID
 const SPECIFIC_UID = 'VI0NhvakSSZz3Sb3ZB44TOHBEWB3';
 
-// Chart configuration base template
+// Chart configuration
 const chartConfig = {
     type: 'line',
     options: {
@@ -30,25 +29,18 @@ const chartConfig = {
             }
         },
         scales: {
-            x: {
-                type: 'time',
-                time: {
-                    unit: 'hour',
-                    displayFormats: {
-                        hour: 'HH:mm'
-                    }
-                },
-                grid: {
-                    display: false
-                },
-                ticks: {
-                    maxRotation: 0
-                }
-            },
             y: {
                 beginAtZero: true,
                 grid: {
                     color: '#f0f0f0'
+                }
+            },
+            x: {
+                grid: {
+                    display: false
+                },
+                ticks: {
+                    maxTicksLimit: 6
                 }
             }
         },
@@ -74,6 +66,7 @@ const chartConfig = {
 const depthChart = new Chart(document.getElementById('depthChart').getContext('2d'), {
     ...chartConfig,
     data: {
+        labels: [],
         datasets: [{
             label: 'Water Depth',
             borderColor: '#1a73e8',
@@ -86,6 +79,7 @@ const depthChart = new Chart(document.getElementById('depthChart').getContext('2
 const temperatureChart = new Chart(document.getElementById('temperatureChart').getContext('2d'), {
     ...chartConfig,
     data: {
+        labels: [],
         datasets: [{
             label: 'Temperature',
             borderColor: '#ea4335',
@@ -98,6 +92,7 @@ const temperatureChart = new Chart(document.getElementById('temperatureChart').g
 const turbidityChart = new Chart(document.getElementById('turbidityChart').getContext('2d'), {
     ...chartConfig,
     data: {
+        labels: [],
         datasets: [{
             label: 'Turbidity',
             borderColor: '#34a853',
@@ -107,10 +102,10 @@ const turbidityChart = new Chart(document.getElementById('turbidityChart').getCo
     }
 });
 
-// Store data globally for download
+// Store data globally
 let globalData = [];
 
-// Initialize data listening with anonymous auth
+// Initialize data listening
 firebase.auth().signInAnonymously()
     .then(() => {
         console.log('Anonymous authentication successful');
@@ -118,15 +113,11 @@ firebase.auth().signInAnonymously()
     })
     .catch((error) => {
         console.error('Authentication error:', error);
-        document.getElementById('connectionStatus').textContent = 'Authentication Error';
-        document.getElementById('connectionStatus').style.color = '#dc3545';
     });
 
 function startDataListening(uid) {
     const dataPath = `/AWRLData/${uid}/Record`;
-    console.log('Starting data listener at path:', dataPath);
     
-    // Real-time listener for latest data
     database.ref(dataPath).limitToLast(24).on('value', (snapshot) => {
         const data = snapshot.val();
         if (!data) {
@@ -135,95 +126,77 @@ function startDataListening(uid) {
         }
 
         try {
-            // Process and sort the data
             const readings = Object.entries(data)
                 .map(([key, value]) => ({
-                    timestamp: new Date(value.timestamp.replace('_', ' ').replace(/-/g, '/')),
+                    timestamp: value.timestamp.replace('_', ' '),
                     depth: value.depth,
                     temperature: value.temperature,
                     turbidity_ntu: value.turbidity_ntu
                 }))
-                .sort((a, b) => a.timestamp - b.timestamp);
+                .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
 
-            globalData = readings; // Store for download feature
+            globalData = readings;
 
-            // Update latest values in the cards
+            // Update latest values
             const latest = readings[readings.length - 1];
             document.getElementById('depthValue').textContent = latest.depth.toFixed(1);
             document.getElementById('temperatureValue').textContent = latest.temperature.toFixed(1);
             document.getElementById('turbidityValue').textContent = latest.turbidity_ntu.toFixed(1);
-            document.getElementById('lastUpdate').textContent = latest.timestamp.toLocaleString();
+            document.getElementById('lastUpdate').textContent = latest.timestamp;
 
-            // Update all charts
+            // Update charts
             updateCharts(readings);
 
         } catch (error) {
             console.error('Error processing data:', error);
         }
-    }, (error) => {
-        console.error('Database error:', error);
     });
 }
 
 function updateCharts(readings) {
-    // Map data for charts
-    const chartData = readings.map(reading => ({
-        x: reading.timestamp,
-        y: reading.value
-    }));
+    const timestamps = readings.map(r => r.timestamp);
 
     // Update Depth Chart
-    depthChart.data.datasets[0].data = readings.map(reading => ({
-        x: reading.timestamp,
-        y: reading.depth
-    }));
+    depthChart.data.labels = timestamps;
+    depthChart.data.datasets[0].data = readings.map(r => r.depth);
     depthChart.update('quiet');
 
     // Update Temperature Chart
-    temperatureChart.data.datasets[0].data = readings.map(reading => ({
-        x: reading.timestamp,
-        y: reading.temperature
-    }));
+    temperatureChart.data.labels = timestamps;
+    temperatureChart.data.datasets[0].data = readings.map(r => r.temperature);
     temperatureChart.update('quiet');
 
     // Update Turbidity Chart
-    turbidityChart.data.datasets[0].data = readings.map(reading => ({
-        x: reading.timestamp,
-        y: reading.turbidity_ntu
-    }));
+    turbidityChart.data.labels = timestamps;
+    turbidityChart.data.datasets[0].data = readings.map(r => r.turbidity_ntu);
     turbidityChart.update('quiet');
 }
 
-// Connection status monitor
+// Monitor connection status
 database.ref('.info/connected').on('value', (snap) => {
     const isConnected = snap.val() === true;
-    const statusElement = document.querySelector('.status-text .connected');
+    const statusElement = document.querySelector('.connected');
     if (statusElement) {
         statusElement.textContent = isConnected ? 'Connected' : 'Disconnected';
         statusElement.style.color = isConnected ? 'green' : 'red';
     }
 });
 
-// Download data function
+// Download function
 function downloadData() {
-    if (globalData.length === 0) {
-        console.log('No data to download');
-        return;
-    }
+    if (globalData.length === 0) return;
 
-    // Create CSV content
     const headers = ['Timestamp', 'Depth (cm)', 'Temperature (°C)', 'Turbidity (NTU)'];
     const csvContent = [
         headers.join(','),
         ...globalData.map(row => [
-            row.timestamp.toLocaleString(),
+            row.timestamp,
             row.depth.toFixed(1),
             row.temperature.toFixed(1),
             row.turbidity_ntu.toFixed(1)
         ].join(','))
     ].join('\n');
 
-    // Create and trigger download
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
