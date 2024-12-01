@@ -26,15 +26,15 @@ const chartConfig = {
         },
         plugins: {
             legend: {
-                display: false  // This removes the legend
+                display: false
             },
             tooltip: {
                 callbacks: {
                     title: function(context) {
-                        return 'Time: ' + context[0].label;
+                        return 'Time: ' + context[0].raw.originalTime;  // Show full time in tooltip
                     },
                     label: function(context) {
-                        return context.formattedValue;  // Just show the value without label
+                        return context.formattedValue;
                     }
                 }
             }
@@ -42,14 +42,29 @@ const chartConfig = {
         scales: {
             x: {
                 display: true,
+                grid: {
+                    display: false
+                },
                 title: {
-                    display: true,
-                    text: 'Time'
+                    display: false
+                },
+                ticks: {
+                    callback: function(value, index, values) {
+                        // Just show the hour number
+                        const hour = this.getLabelForValue(value).split(':')[0];
+                        return hour;
+                    }
                 }
             },
             y: {
                 display: true,
-                beginAtZero: false
+                grid: {
+                    display: false
+                },
+                beginAtZero: false,
+                title: {
+                    display: false
+                }
             }
         }
     }
@@ -100,7 +115,8 @@ function initializeCharts() {
                 data: [],
                 borderColor: '#1a73e8',
                 tension: 0.1,
-                fill: false
+                fill: false,
+                pointRadius: 0
             }]
         }
     });
@@ -115,7 +131,8 @@ function initializeCharts() {
                 data: [],
                 borderColor: '#ea4335',
                 tension: 0.1,
-                fill: false
+                fill: false,
+                pointRadius: 0
             }]
         }
     });
@@ -130,7 +147,8 @@ function initializeCharts() {
                 data: [],
                 borderColor: '#34a853',
                 tension: 0.1,
-                fill: false
+                fill: false,
+                pointRadius: 0
             }]
         }
     });
@@ -185,9 +203,18 @@ function startDataListening(database) {
 
 function updateCharts(data) {
     const labels = data.map(d => formatTimestampForChart(d.timestamp));
-    const depthData = data.map(d => d.depth);
-    const tempData = data.map(d => d.temperature);
-    const turbData = data.map(d => d.turbidity_ntu);
+    const depthData = data.map(d => ({
+        y: d.depth,
+        originalTime: formatTimestamp(d.timestamp)  // Store full timestamp for tooltip
+    }));
+    const tempData = data.map(d => ({
+        y: d.temperature,
+        originalTime: formatTimestamp(d.timestamp)
+    }));
+    const turbData = data.map(d => ({
+        y: d.turbidity_ntu,
+        originalTime: formatTimestamp(d.timestamp)
+    }));
 
     // Update Depth Chart
     depthChart.data.labels = labels;
@@ -215,11 +242,11 @@ function formatTimestamp(timestamp) {
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
 }
 
-// Update the timestamp format for chart to show only time
+// Format timestamp to show only hours
 function formatTimestampForChart(timestamp) {
     const [datePart, timePart] = timestamp.split('_');
     const [hours, minutes] = timePart.split('-');
-    return `${hours}:${minutes}`;
+    return hours.padStart(2, '0');
 }
 
 
