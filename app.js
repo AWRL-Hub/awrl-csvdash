@@ -2,7 +2,8 @@
 const firebaseConfig = {
     apiKey: "AIzaSyCTjgXOengQjinmKz5hB7IwaLN1cVylOBs",
     authDomain: "awrl-49c31.firebaseapp.com",
-    databaseURL: "https://awrl-49c31-default-rtdb.asia-southeast1.firebasedatabase.app",  // Fixed URL
+    // Updated database URL
+    databaseURL: "https://awrl-49c31-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "awrl-49c31",
     storageBucket: "awrl-49c31.firebasestorage.app",
     messagingSenderId: "109887515682",
@@ -10,31 +11,43 @@ const firebaseConfig = {
     measurementId: "G-MFMHM3YY7H"
 };
 
-// Initialize Firebase
+// Initialize Firebase with logging
+console.log('Initializing Firebase with config:', firebaseConfig);
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const analytics = firebase.analytics();
 
-// Initialize Authentication
+// Initialize Authentication with logging
 firebase.auth().onAuthStateChanged((user) => {
     if (user) {
-        console.log('User is signed in:', user.uid);
+        console.log('User is signed in with UID:', user.uid);
         startDataListening(user.uid);
     } else {
         console.log('No user signed in, attempting anonymous sign-in');
         firebase.auth().signInAnonymously()
+            .then((userCredential) => {
+                console.log('Anonymous sign-in successful:', userCredential.user.uid);
+            })
             .catch((error) => {
-                console.error('Anonymous sign-in error:', error);
+                console.error('Anonymous sign-in error:', error.code, error.message);
             });
     }
 });
 
 function startDataListening(uid) {
-    // Log the path we're trying to access
     const dataPath = `/AWRLData/${uid}/Record`;
     console.log('Attempting to access data at path:', dataPath);
 
-    // Real-time data listener with error handling
+    // Test specific path access
+    database.ref(dataPath).once('value')
+        .then((snapshot) => {
+            console.log('Initial data check:', snapshot.val());
+        })
+        .catch((error) => {
+            console.error('Error checking data:', error);
+        });
+
+    // Real-time listener
     database.ref(dataPath).limitToLast(100).on('value', 
         (snapshot) => {
             console.log('Data received:', snapshot.val());
@@ -44,7 +57,6 @@ function startDataListening(uid) {
                 return;
             }
 
-            // Convert object to array and sort by timestamp
             try {
                 globalData = Object.entries(data)
                     .map(([key, value]) => ({
@@ -55,34 +67,32 @@ function startDataListening(uid) {
                     }))
                     .sort((a, b) => new Date(a.timestamp.replace('_', ' ')) - new Date(b.timestamp.replace('_', ' ')));
 
-                // Update latest values
                 const latest = globalData[globalData.length - 1];
                 document.getElementById('depthValue').textContent = latest.depth.toFixed(1);
                 document.getElementById('temperatureValue').textContent = latest.temperature.toFixed(1);
                 document.getElementById('turbidityValue').textContent = latest.turbidity_ntu.toFixed(1);
                 document.getElementById('lastUpdate').textContent = formatTimestamp(latest.timestamp);
 
-                // Update chart
                 updateChart(globalData);
+                console.log('Data successfully processed and displayed');
             } catch (error) {
                 console.error('Error processing data:', error);
             }
         }, 
         (error) => {
-            console.error('Database error:', error);
+            console.error('Database error:', error.code, error.message);
         }
     );
 }
 
-// Test database connection
+// Connection status monitor
 database.ref('.info/connected').on('value', (snapshot) => {
-    if (snapshot.val() === true) {
-        console.log('Connected to Firebase');
-    } else {
-        console.log('Not connected to Firebase');
+    const connected = snapshot.val();
+    console.log('Firebase connection status:', connected ? 'Connected' : 'Disconnected');
+    if (!connected) {
+        console.log('Attempting to reconnect...');
     }
 });
-
 // Initialize Chart
 const ctx = document.getElementById('historyChart').getContext('2d');
 const chart = new Chart(ctx, {
