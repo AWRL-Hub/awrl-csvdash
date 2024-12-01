@@ -11,19 +11,55 @@ const firebaseConfig = {
 };
 
 // Global variables
-let chart;
+let depthChart, temperatureChart, turbidityChart;
 let globalData = [];
 const SPECIFIC_UID = "VI0NhvakSSZz3Sb3ZB44TOHBEWB3";
 
-// Wait for DOM to be fully loaded
+// Chart configuration
+const chartConfig = {
+    type: 'line',
+    options: {
+        responsive: true,
+        interaction: {
+            intersect: false,
+            mode: 'index',
+        },
+        plugins: {
+            tooltip: {
+                callbacks: {
+                    title: function(context) {
+                        return 'Time: ' + context[0].label;
+                    },
+                    label: function(context) {
+                        return context.dataset.label + ': ' + context.formattedValue;
+                    }
+                }
+            }
+        },
+        scales: {
+            x: {
+                display: true,
+                title: {
+                    display: true,
+                    text: 'Time'
+                }
+            },
+            y: {
+                display: true,
+                beginAtZero: false
+            }
+        }
+    }
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     const database = firebase.database();
     const analytics = firebase.analytics();
 
-    // Initialize Chart
-    initializeChart();
+    // Initialize Charts
+    initializeCharts();
 
     // Start authentication and data listening
     firebase.auth().signInAnonymously()
@@ -50,57 +86,49 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-function initializeChart() {
-    const ctx = document.getElementById('historyChart').getContext('2d');
-    chart = new Chart(ctx, {
-        type: 'line',
+function initializeCharts() {
+    // Initialize Depth Chart
+    depthChart = new Chart(document.getElementById('depthChart').getContext('2d'), {
+        ...chartConfig,
         data: {
             labels: [],
-            datasets: [
-                {
-                    label: 'Water Depth (cm)',
-                    data: [],
-                    borderColor: '#1a73e8',
-                    tension: 0.1
-                },
-                {
-                    label: 'Temperature (°C)',
-                    data: [],
-                    borderColor: '#ea4335',
-                    tension: 0.1
-                },
-                {
-                    label: 'Turbidity (NTU)',
-                    data: [],
-                    borderColor: '#34a853',
-                    tension: 0.1
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Sensor Measurements History'
-                }
-            },
-            scales: {
-                x: {
-                    display: true,
-                    title: {
-                        display: true,
-                        text: 'Time'
-                    }
-                },
-                y: {
-                    display: true,
-                    title: {
-                        display: true,
-                        text: 'Value'
-                    }
-                }
-            }
+            datasets: [{
+                label: 'Depth',
+                data: [],
+                borderColor: '#1a73e8',
+                tension: 0.1,
+                fill: false
+            }]
+        }
+    });
+
+    // Initialize Temperature Chart
+    temperatureChart = new Chart(document.getElementById('temperatureChart').getContext('2d'), {
+        ...chartConfig,
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Temperature',
+                data: [],
+                borderColor: '#ea4335',
+                tension: 0.1,
+                fill: false
+            }]
+        }
+    });
+
+    // Initialize Turbidity Chart
+    turbidityChart = new Chart(document.getElementById('turbidityChart').getContext('2d'), {
+        ...chartConfig,
+        data: {
+            labels: [],
+            datasets: [{
+                label: 'Turbidity',
+                data: [],
+                borderColor: '#34a853',
+                tension: 0.1,
+                fill: false
+            }]
         }
     });
 }
@@ -137,8 +165,8 @@ function startDataListening(database) {
                 document.getElementById('lastUpdate').textContent = formatTimestamp(latest.timestamp);
                 document.getElementById('connectionStatus').textContent = 'Connected - Data Updated';
 
-                // Update chart
-                updateChart(globalData);
+                // Update charts
+                updateCharts(globalData);
                 console.log('Data successfully processed and displayed');
             } catch (error) {
                 console.error('Error processing data:', error);
@@ -152,18 +180,26 @@ function startDataListening(database) {
     );
 }
 
-function updateChart(data) {
-    // Use shorter timestamp format for chart labels
+function updateCharts(data) {
     const labels = data.map(d => formatTimestampForChart(d.timestamp));
     const depthData = data.map(d => d.depth);
     const tempData = data.map(d => d.temperature);
     const turbData = data.map(d => d.turbidity_ntu);
 
-    chart.data.labels = labels;
-    chart.data.datasets[0].data = depthData;
-    chart.data.datasets[1].data = tempData;
-    chart.data.datasets[2].data = turbData;
-    chart.update();
+    // Update Depth Chart
+    depthChart.data.labels = labels;
+    depthChart.data.datasets[0].data = depthData;
+    depthChart.update();
+
+    // Update Temperature Chart
+    temperatureChart.data.labels = labels;
+    temperatureChart.data.datasets[0].data = tempData;
+    temperatureChart.update();
+
+    // Update Turbidity Chart
+    turbidityChart.data.labels = labels;
+    turbidityChart.data.datasets[0].data = turbData;
+    turbidityChart.update();
 }
 
 function formatTimestamp(timestamp) {

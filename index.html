@@ -77,66 +77,30 @@
             margin-top: 5px;
         }
 
-        .chart-container {
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .chart-wrapper {
             background-color: #ffffff;
             padding: 20px;
             border-radius: 10px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
         }
 
-        .button {
-            background-color: #1a73e8;
-            color: white;
-            padding: 10px 20px;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 1em;
-            transition: background-color 0.2s ease-in-out;
-        }
-
-        .button:hover {
-            background-color: #1557b0;
-        }
-
-        .last-update {
+        .chart-title {
+            font-size: 1.1em;
             color: #5f6368;
-            font-size: 0.9em;
-            margin-top: 10px;
+            margin-bottom: 10px;
+            text-align: center;
         }
 
-        #connectionStatus {
-            padding: 5px 10px;
-            border-radius: 15px;
-            font-size: 0.8em;
-            margin-top: 10px;
-            display: inline-block;
-        }
-
-        .controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-        }
-
-        @media (max-width: 768px) {
-            body {
-                padding: 10px;
-            }
-            
-            .card {
-                padding: 15px;
-            }
-            
-            .card .value {
-                font-size: 1.5em;
-            }
-
-            .controls {
-                flex-direction: column;
-                gap: 10px;
+        @media (max-width: 1200px) {
+            .charts-container {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -167,12 +131,23 @@
             </div>
         </div>
 
-        <div class="controls">
-            <button class="button" onclick="downloadData()">Download Data (CSV)</button>
+        <div class="charts-container">
+            <div class="chart-wrapper">
+                <div class="chart-title">Water Depth (cm)</div>
+                <canvas id="depthChart"></canvas>
+            </div>
+            <div class="chart-wrapper">
+                <div class="chart-title">Temperature (°C)</div>
+                <canvas id="temperatureChart"></canvas>
+            </div>
+            <div class="chart-wrapper">
+                <div class="chart-title">Turbidity (NTU)</div>
+                <canvas id="turbidityChart"></canvas>
+            </div>
         </div>
 
-        <div class="chart-container">
-            <canvas id="historyChart"></canvas>
+        <div class="controls">
+            <button class="button" onclick="downloadData()">Download Data (CSV)</button>
         </div>
     </div>
 
