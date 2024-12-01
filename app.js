@@ -14,6 +14,7 @@ const firebaseConfig = {
 let depthChart, temperatureChart, turbidityChart;
 let globalData = [];
 const SPECIFIC_UID = "VI0NhvakSSZz3Sb3ZB44TOHBEWB3";
+let availableDates = new Set(); // Store unique dates from the database
 
 // Chart configuration
 const chartConfig = {
@@ -96,6 +97,85 @@ const chartConfig = {
     }
 };
 
+// Function to update available dates
+function updateAvailableDates(data) {
+    availableDates.clear();
+    data.forEach(item => {
+        const date = item.timestamp.split('_')[0]; // Get date part only
+        availableDates.add(date);
+    });
+    
+    // Update datepicker
+    const datePicker = document.getElementById('datePicker');
+    
+    // Convert Set to Array and sort
+    const dates = Array.from(availableDates).sort();
+    
+    // Update datepicker attributes
+    if (dates.length > 0) {
+        datePicker.min = dates[0];
+        datePicker.max = dates[dates.length - 1];
+        
+        // If current selected date is not in available dates, select the latest date
+        if (!availableDates.has(datePicker.value)) {
+            datePicker.value = dates[dates.length - 1];
+        }
+    }
+    
+    // Add event listener to validate date selection
+    datePicker.addEventListener('input', function(e) {
+        if (!availableDates.has(this.value)) {
+            alert('No data available for selected date');
+            // Reset to the latest available date
+            this.value = Array.from(availableDates).sort().pop();
+        }
+        changeDate();
+    });
+}
+
+// Update your startDataListening function
+function startDataListening(database) {
+    const dataPath = `/AWRLData/${SPECIFIC_UID}/Record`;
+    console.log('Attempting to access data at path:', dataPath);
+
+    database.ref(dataPath).on('value', 
+        (snapshot) => {
+            console.log('Data received');
+            const data = snapshot.val();
+            if (!data) {
+                console.log('No data available at this path');
+                document.getElementById('connectionStatus').textContent = 'No data available';
+                return;
+            }
+
+            try {
+                // Store all data
+                allData = Object.entries(data)
+                    .map(([key, value]) => ({
+                        timestamp: value.timestamp,
+                        depth: value.depth,
+                        temperature: value.temperature,
+                        turbidity_ntu: value.turbidity_ntu
+                    }))
+                    .sort((a, b) => new Date(a.timestamp.replace('_', ' ')) - new Date(b.timestamp.replace('_', ' ')));
+
+                // Update available dates
+                updateAvailableDates(allData);
+
+                // Filter and display data for selected date
+                filterAndDisplayData();
+
+            } catch (error) {
+                console.error('Error processing data:', error);
+                document.getElementById('connectionStatus').textContent = 'Error processing data';
+            }
+        }, 
+        (error) => {
+            console.error('Database error:', error.code, error.message);
+            document.getElementById('connectionStatus').textContent = 'Error: ' + error.message;
+        }
+    );
+}
 
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Firebase
