@@ -44,7 +44,7 @@ const chartConfig = {
             x: {
                 display: true,
                 grid: {
-                    display: false,  // Removes x-axis grid lines
+                    display: false,
                     drawBorder: false
                 },
                 ticks: {
@@ -62,7 +62,7 @@ const chartConfig = {
             y: {
                 display: true,
                 grid: {
-                    display: false,  // Removes y-axis grid lines
+                    display: false,
                     drawBorder: false
                 },
                 ticks: {
@@ -110,15 +110,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
-// When initializing charts
 function initializeCharts() {
-    const chartHeight = '200px';
-
-    // Set height for chart containers
-    document.getElementById('depthChart').style.height = chartHeight;
-    document.getElementById('temperatureChart').style.height = chartHeight;
-    document.getElementById('turbidityChart').style.height = chartHeight;
-
     // Initialize Depth Chart
     depthChart = new Chart(document.getElementById('depthChart').getContext('2d'), {
         ...chartConfig,
@@ -127,7 +119,7 @@ function initializeCharts() {
             datasets: [{
                 data: [],
                 borderColor: '#1a73e8',
-                tension: 0,  // Makes the line straight
+                tension: 0,
                 fill: false,
                 pointRadius: 0,
                 borderWidth: 1.5
@@ -167,7 +159,6 @@ function initializeCharts() {
         }
     });
 }
-
 
 function startDataListening(database) {
     const dataPath = `/AWRLData/${SPECIFIC_UID}/Record`;
@@ -248,12 +239,13 @@ function formatTimestamp(timestamp) {
 function formatTimestampForChart(timestamp) {
     const [datePart, timePart] = timestamp.split('_');
     const [hours, minutes] = timePart.split('-');
-    return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+    return hours.padStart(2, '0');
 }
 
 function downloadData() {
     if (globalData.length === 0) return;
 
+    // Create CSV content with formatted timestamp
     const headers = ['Timestamp', 'Depth (cm)', 'Temperature (°C)', 'Turbidity (NTU)'];
     const csvContent = [
         headers.join(','),
@@ -265,6 +257,7 @@ function downloadData() {
         ].join(','))
     ].join('\n');
 
+    // Create and trigger download
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
