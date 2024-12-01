@@ -18,7 +18,17 @@ const analytics = firebase.analytics();
 // Use specific UID
 const SPECIFIC_UID = "VI0NhvakSSZz3Sb3ZB44TOHBEWB3";
 
-// Initialize data listening immediately with specific UID
+// First sign in anonymously
+firebase.auth().signInAnonymously()
+    .then(() => {
+        console.log('Signed in anonymously');
+        startDataListening();
+    })
+    .catch((error) => {
+        console.error('Error signing in:', error);
+        document.getElementById('connectionStatus').textContent = 'Authentication Error: ' + error.message;
+    });
+
 function startDataListening() {
     const dataPath = `/AWRLData/${SPECIFIC_UID}/Record`;
     console.log('Attempting to access data at path:', dataPath);
@@ -167,9 +177,6 @@ function downloadData() {
     a.click();
     document.body.removeChild(a);
 }
-
-// Start listening for data immediately
-startDataListening();
 
 // Monitor connection status
 database.ref('.info/connected').on('value', (snapshot) => {
