@@ -15,6 +15,7 @@ let depthChart, temperatureChart, turbidityChart;
 let globalData = [];
 const SPECIFIC_UID = "VI0NhvakSSZz3Sb3ZB44TOHBEWB3";
 
+// Chart configuration
 const chartConfig = {
     type: 'line',
     options: {
@@ -46,13 +47,14 @@ const chartConfig = {
                     display: false,
                     drawBorder: false
                 },
+                min: '00',
+                max: '24',
                 ticks: {
                     maxRotation: 0,
-                    autoSkip: true,
-                    maxTicksLimit: 24,  // Limit the number of x-axis ticks to 24 (hours)
+                    autoSkip: false,
                     callback: function(value, index) {
-                        const hour = this.getLabelForValue(value).split(':')[0];
-                        return hour.padStart(2, '0');
+                        // Create fixed labels from 00 to 24
+                        return index.toString().padStart(2, '0');
                     }
                 },
                 border: {
@@ -244,8 +246,8 @@ function formatTimestamp(timestamp) {
 
 function formatTimestampForChart(timestamp) {
     const [datePart, timePart] = timestamp.split('_');
-    const [hours, minutes] = timePart.split('-');
-    return hours.padStart(2, '0');
+    const [hours] = timePart.split('-');
+    return parseInt(hours); // Return the hour as a number for proper plotting
 }
 
 function downloadData() {
