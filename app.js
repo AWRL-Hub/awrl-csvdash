@@ -20,6 +20,7 @@ const chartConfig = {
     type: 'line',
     options: {
         responsive: true,
+        maintainAspectRatio: false,
         interaction: {
             intersect: false,
             mode: 'index',
@@ -31,7 +32,7 @@ const chartConfig = {
             tooltip: {
                 callbacks: {
                     title: function(context) {
-                        return 'Time: ' + context[0].raw.originalTime;  // Show full time in tooltip
+                        return context[0].label;
                     },
                     label: function(context) {
                         return context.formattedValue;
@@ -43,27 +44,32 @@ const chartConfig = {
             x: {
                 display: true,
                 grid: {
-                    display: false
-                },
-                title: {
-                    display: false
+                    display: false,  // Removes x-axis grid lines
+                    drawBorder: false
                 },
                 ticks: {
-                    callback: function(value, index, values) {
-                        // Just show the hour number
+                    maxRotation: 0,
+                    autoSkip: false,
+                    callback: function(value, index) {
                         const hour = this.getLabelForValue(value).split(':')[0];
-                        return hour;
+                        return hour.padStart(2, '0');
                     }
+                },
+                border: {
+                    display: true
                 }
             },
             y: {
                 display: true,
                 grid: {
-                    display: false
+                    display: false,  // Removes y-axis grid lines
+                    drawBorder: false
                 },
-                beginAtZero: false,
-                title: {
-                    display: false
+                ticks: {
+                    padding: 10
+                },
+                border: {
+                    display: true
                 }
             }
         }
@@ -104,19 +110,27 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// When initializing charts
 function initializeCharts() {
+    const chartHeight = '200px';
+
+    // Set height for chart containers
+    document.getElementById('depthChart').style.height = chartHeight;
+    document.getElementById('temperatureChart').style.height = chartHeight;
+    document.getElementById('turbidityChart').style.height = chartHeight;
+
     // Initialize Depth Chart
     depthChart = new Chart(document.getElementById('depthChart').getContext('2d'), {
         ...chartConfig,
         data: {
             labels: [],
             datasets: [{
-                label: 'Depth',
                 data: [],
                 borderColor: '#1a73e8',
-                tension: 0.1,
+                tension: 0,  // Makes the line straight
                 fill: false,
-                pointRadius: 0
+                pointRadius: 0,
+                borderWidth: 1.5
             }]
         }
     });
@@ -127,12 +141,12 @@ function initializeCharts() {
         data: {
             labels: [],
             datasets: [{
-                label: 'Temperature',
                 data: [],
                 borderColor: '#ea4335',
-                tension: 0.1,
+                tension: 0,
                 fill: false,
-                pointRadius: 0
+                pointRadius: 0,
+                borderWidth: 1.5
             }]
         }
     });
@@ -143,16 +157,17 @@ function initializeCharts() {
         data: {
             labels: [],
             datasets: [{
-                label: 'Turbidity',
                 data: [],
                 borderColor: '#34a853',
-                tension: 0.1,
+                tension: 0,
                 fill: false,
-                pointRadius: 0
+                pointRadius: 0,
+                borderWidth: 1.5
             }]
         }
     });
 }
+
 
 function startDataListening(database) {
     const dataPath = `/AWRLData/${SPECIFIC_UID}/Record`;
@@ -203,18 +218,9 @@ function startDataListening(database) {
 
 function updateCharts(data) {
     const labels = data.map(d => formatTimestampForChart(d.timestamp));
-    const depthData = data.map(d => ({
-        y: d.depth,
-        originalTime: formatTimestamp(d.timestamp)  // Store full timestamp for tooltip
-    }));
-    const tempData = data.map(d => ({
-        y: d.temperature,
-        originalTime: formatTimestamp(d.timestamp)
-    }));
-    const turbData = data.map(d => ({
-        y: d.turbidity_ntu,
-        originalTime: formatTimestamp(d.timestamp)
-    }));
+    const depthData = data.map(d => d.depth);
+    const tempData = data.map(d => d.temperature);
+    const turbData = data.map(d => d.turbidity_ntu);
 
     // Update Depth Chart
     depthChart.data.labels = labels;
@@ -233,39 +239,32 @@ function updateCharts(data) {
 }
 
 function formatTimestamp(timestamp) {
-    // Parse the timestamp string
     const [datePart, timePart] = timestamp.split('_');
     const [year, month, day] = datePart.split('-');
     const [hours, minutes, seconds] = timePart.split('-');
-
-    // Return formatted date string
     return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
 }
 
-// Format timestamp to show only hours
 function formatTimestampForChart(timestamp) {
     const [datePart, timePart] = timestamp.split('_');
     const [hours, minutes] = timePart.split('-');
-    return hours.padStart(2, '0');
+    return `${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}`;
 }
-
 
 function downloadData() {
     if (globalData.length === 0) return;
 
-    // Create CSV content with formatted timestamp
     const headers = ['Timestamp', 'Depth (cm)', 'Temperature (°C)', 'Turbidity (NTU)'];
     const csvContent = [
         headers.join(','),
         ...globalData.map(row => [
-            formatTimestamp(row.timestamp),  // Use formatted timestamp
+            formatTimestamp(row.timestamp),
             row.depth,
             row.temperature,
             row.turbidity_ntu
         ].join(','))
     ].join('\n');
 
-    // Create and trigger download
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
