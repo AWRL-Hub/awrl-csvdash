@@ -153,7 +153,8 @@ function startDataListening(database) {
 }
 
 function updateChart(data) {
-    const labels = data.map(d => formatTimestamp(d.timestamp));
+    // Use shorter timestamp format for chart labels
+    const labels = data.map(d => formatTimestampForChart(d.timestamp));
     const depthData = data.map(d => d.depth);
     const tempData = data.map(d => d.temperature);
     const turbData = data.map(d => d.turbidity_ntu);
@@ -166,18 +167,31 @@ function updateChart(data) {
 }
 
 function formatTimestamp(timestamp) {
-    return new Date(timestamp.replace('_', ' ').replace(/-/g, '/')).toLocaleString();
+    // Parse the timestamp string
+    const [datePart, timePart] = timestamp.split('_');
+    const [year, month, day] = datePart.split('-');
+    const [hours, minutes, seconds] = timePart.split('-');
+
+    // Return formatted date string
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+}
+
+function formatTimestampForChart(timestamp) {
+    const [datePart, timePart] = timestamp.split('_');
+    const [year, month, day] = datePart.split('-');
+    const [hours, minutes] = timePart.split('-');
+    return `${day}/${month} ${hours}:${minutes}`;
 }
 
 function downloadData() {
     if (globalData.length === 0) return;
 
-    // Create CSV content
+    // Create CSV content with formatted timestamp
     const headers = ['Timestamp', 'Depth (cm)', 'Temperature (°C)', 'Turbidity (NTU)'];
     const csvContent = [
         headers.join(','),
         ...globalData.map(row => [
-            row.timestamp,
+            formatTimestamp(row.timestamp),  // Use formatted timestamp
             row.depth,
             row.temperature,
             row.turbidity_ntu
