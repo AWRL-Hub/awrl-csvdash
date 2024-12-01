@@ -2,7 +2,6 @@
 const firebaseConfig = {
     apiKey: "AIzaSyCTjgXOengQjinmKz5hB7IwaLN1cVylOBs",
     authDomain: "awrl-49c31.firebaseapp.com",
-    // Updated database URL
     databaseURL: "https://awrl-49c31-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "awrl-49c31",
     storageBucket: "awrl-49c31.firebasestorage.app",
@@ -11,49 +10,37 @@ const firebaseConfig = {
     measurementId: "G-MFMHM3YY7H"
 };
 
-// Initialize Firebase with logging
+// Initialize Firebase
 console.log('Initializing Firebase with config:', firebaseConfig);
 firebase.initializeApp(firebaseConfig);
 const database = firebase.database();
 const analytics = firebase.analytics();
 
-// Initialize Authentication with logging
-firebase.auth().onAuthStateChanged((user) => {
-    if (user) {
-        console.log('User is signed in with UID:', user.uid);
-        startDataListening(user.uid);
-    } else {
-        console.log('No user signed in, attempting anonymous sign-in');
-        firebase.auth().signInAnonymously()
-            .then((userCredential) => {
-                console.log('Anonymous sign-in successful:', userCredential.user.uid);
-            })
-            .catch((error) => {
-                console.error('Anonymous sign-in error:', error.code, error.message);
-            });
-    }
-});
+// Specific User ID
+const SPECIFIC_UID = 'VI0NhvakSSZz3Sb3ZB44TOHBEWB3';
+
+// Initialize data listening
+firebase.auth().signInAnonymously()
+    .then((userCredential) => {
+        console.log('Anonymous sign-in successful');
+        startDataListening(SPECIFIC_UID);  // Use specific UID
+    })
+    .catch((error) => {
+        console.error('Anonymous sign-in error:', error.code, error.message);
+    });
 
 function startDataListening(uid) {
     const dataPath = `/AWRLData/${uid}/Record`;
     console.log('Attempting to access data at path:', dataPath);
 
-    // Test specific path access
-    database.ref(dataPath).once('value')
-        .then((snapshot) => {
-            console.log('Initial data check:', snapshot.val());
-        })
-        .catch((error) => {
-            console.error('Error checking data:', error);
-        });
-
-    // Real-time listener
+    // Real-time data listener
     database.ref(dataPath).limitToLast(100).on('value', 
         (snapshot) => {
             console.log('Data received:', snapshot.val());
             const data = snapshot.val();
             if (!data) {
                 console.log('No data available at this path');
+                document.getElementById('lastUpdate').textContent = 'No data available';
                 return;
             }
 
@@ -81,18 +68,25 @@ function startDataListening(uid) {
         }, 
         (error) => {
             console.error('Database error:', error.code, error.message);
+            document.getElementById('lastUpdate').textContent = 'Error loading data';
         }
     );
 }
 
 // Connection status monitor
-database.ref('.info/connected').on('value', (snapshot) => {
-    const connected = snapshot.val();
-    console.log('Firebase connection status:', connected ? 'Connected' : 'Disconnected');
-    if (!connected) {
-        console.log('Attempting to reconnect...');
+let connectedRef = database.ref('.info/connected');
+connectedRef.on('value', (snap) => {
+    if (snap.val() === true) {
+        console.log('Connected to Firebase');
+        document.getElementById('connectionStatus').textContent = 'Connected';
+        document.getElementById('connectionStatus').style.color = '#4CAF50';
+    } else {
+        console.log('Not connected to Firebase');
+        document.getElementById('connectionStatus').textContent = 'Disconnected';
+        document.getElementById('connectionStatus').style.color = '#f44336';
     }
 });
+
 // Initialize Chart
 const ctx = document.getElementById('historyChart').getContext('2d');
 const chart = new Chart(ctx, {
