@@ -10,30 +10,105 @@ const firebaseConfig = {
     measurementId: "G-MFMHM3YY7H"
 };
 
-// Initialize Firebase
-firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
-const analytics = firebase.analytics();
-
-// Use specific UID
+// Global variables
+let chart;
+let globalData = [];
 const SPECIFIC_UID = "VI0NhvakSSZz3Sb3ZB44TOHBEWB3";
 
-// First sign in anonymously
-firebase.auth().signInAnonymously()
-    .then(() => {
-        console.log('Signed in anonymously');
-        startDataListening();
-    })
-    .catch((error) => {
-        console.error('Error signing in:', error);
-        document.getElementById('connectionStatus').textContent = 'Authentication Error: ' + error.message;
-    });
+// Wait for DOM to be fully loaded
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+    const analytics = firebase.analytics();
 
-function startDataListening() {
+    // Initialize Chart
+    initializeChart();
+
+    // Start authentication and data listening
+    firebase.auth().signInAnonymously()
+        .then(() => {
+            console.log('Signed in anonymously');
+            startDataListening(database);
+        })
+        .catch((error) => {
+            console.error('Error signing in:', error);
+            document.getElementById('connectionStatus').textContent = 'Authentication Error: ' + error.message;
+        });
+
+    // Monitor connection status
+    database.ref('.info/connected').on('value', (snapshot) => {
+        const connected = snapshot.val();
+        const statusElement = document.getElementById('connectionStatus');
+        if (connected) {
+            statusElement.textContent = 'Connected to Firebase';
+            statusElement.style.color = '#4CAF50';
+        } else {
+            statusElement.textContent = 'Disconnected - Trying to reconnect...';
+            statusElement.style.color = '#f44336';
+        }
+    });
+});
+
+function initializeChart() {
+    const ctx = document.getElementById('historyChart').getContext('2d');
+    chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [
+                {
+                    label: 'Water Depth (cm)',
+                    data: [],
+                    borderColor: '#1a73e8',
+                    tension: 0.1
+                },
+                {
+                    label: 'Temperature (°C)',
+                    data: [],
+                    borderColor: '#ea4335',
+                    tension: 0.1
+                },
+                {
+                    label: 'Turbidity (NTU)',
+                    data: [],
+                    borderColor: '#34a853',
+                    tension: 0.1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: 'Sensor Measurements History'
+                }
+            },
+            scales: {
+                x: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Time'
+                    }
+                },
+                y: {
+                    display: true,
+                    title: {
+                        display: true,
+                        text: 'Value'
+                    }
+                }
+            }
+        }
+    });
+}
+
+function startDataListening(database) {
     const dataPath = `/AWRLData/${SPECIFIC_UID}/Record`;
     console.log('Attempting to access data at path:', dataPath);
 
-    // Real-time data listener
     database.ref(dataPath).limitToLast(100).on('value', 
         (snapshot) => {
             console.log('Data received:', snapshot.val());
@@ -76,63 +151,6 @@ function startDataListening() {
         }
     );
 }
-
-// Initialize Chart
-const ctx = document.getElementById('historyChart').getContext('2d');
-const chart = new Chart(ctx, {
-    type: 'line',
-    data: {
-        labels: [],
-        datasets: [
-            {
-                label: 'Water Depth (cm)',
-                data: [],
-                borderColor: '#1a73e8',
-                tension: 0.1
-            },
-            {
-                label: 'Temperature (°C)',
-                data: [],
-                borderColor: '#ea4335',
-                tension: 0.1
-            },
-            {
-                label: 'Turbidity (NTU)',
-                data: [],
-                borderColor: '#34a853',
-                tension: 0.1
-            }
-        ]
-    },
-    options: {
-        responsive: true,
-        plugins: {
-            title: {
-                display: true,
-                text: 'Sensor Measurements History'
-            }
-        },
-        scales: {
-            x: {
-                display: true,
-                title: {
-                    display: true,
-                    text: 'Time'
-                }
-            },
-            y: {
-                display: true,
-                title: {
-                    display: true,
-                    text: 'Value'
-                }
-            }
-        }
-    }
-});
-
-// Store data globally for download
-let globalData = [];
 
 function updateChart(data) {
     const labels = data.map(d => formatTimestamp(d.timestamp));
@@ -177,16 +195,3 @@ function downloadData() {
     a.click();
     document.body.removeChild(a);
 }
-
-// Monitor connection status
-database.ref('.info/connected').on('value', (snapshot) => {
-    const connected = snapshot.val();
-    const statusElement = document.getElementById('connectionStatus');
-    if (connected) {
-        statusElement.textContent = 'Connected to Firebase';
-        statusElement.style.color = '#4CAF50';
-    } else {
-        statusElement.textContent = 'Disconnected - Trying to reconnect...';
-        statusElement.style.color = '#f44336';
-    }
-});
