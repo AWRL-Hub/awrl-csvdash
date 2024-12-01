@@ -39,8 +39,7 @@ const chartConfig = {
                 displayColors: false,
                 callbacks: {
                     title: function(context) {
-                        const hour = context[0].label.padStart(2, '0');
-                        return `${hour}:00 WIB`;
+                        return `${context[0].label}:00 WIB`;
                     },
                     label: function(context) {
                         const value = context.raw.toFixed(1);
@@ -57,13 +56,13 @@ const chartConfig = {
                     display: false,
                     drawBorder: false
                 },
-                min: 0,
-                max: 23,
                 ticks: {
                     stepSize: 2,
                     maxRotation: 0,
                     autoSkip: false,
-                    padding: 5,
+                    callback: function(value) {
+                        return value.toString().padStart(2, '0');
+                    },
                     color: '#666',
                     font: {
                         size: 11
@@ -93,17 +92,10 @@ const chartConfig = {
                     color: '#ddd'
                 }
             }
-        },
-        layout: {
-            padding: {
-                top: 10,
-                right: 10,
-                bottom: 10,
-                left: 10
-            }
         }
     }
 };
+
 
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Firebase
@@ -151,7 +143,7 @@ function initializeCharts() {
     depthChart = new Chart(document.getElementById('depthChart').getContext('2d'), {
         ...chartConfig,
         data: {
-            labels: Array.from({length: 24}, (_, i) => i.toString()),
+            labels: Array.from({length: 25}, (_, i) => i.toString().padStart(2, '0')),
             datasets: [{
                 label: 'Depth',
                 data: [],
@@ -164,11 +156,12 @@ function initializeCharts() {
         }
     });
 
+
     // Initialize Temperature Chart
     temperatureChart = new Chart(document.getElementById('temperatureChart').getContext('2d'), {
         ...chartConfig,
         data: {
-            labels: Array.from({length: 24}, (_, i) => i.toString()),
+            labels: Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')),
             datasets: [{
                 label: 'Temperature',
                 data: [],
@@ -185,7 +178,7 @@ function initializeCharts() {
     turbidityChart = new Chart(document.getElementById('turbidityChart').getContext('2d'), {
         ...chartConfig,
         data: {
-            labels: Array.from({length: 24}, (_, i) => i.toString()),
+            labels: Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')),
             datasets: [{
                 label: 'Turbidity',
                 data: [],
