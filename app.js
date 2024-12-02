@@ -16,6 +16,20 @@ let globalData = [];
 const SPECIFIC_UID = "VI0NhvakSSZz3Sb3ZB44TOHBEWB3";
 let availableDates = new Set();
 
+// Helper function to get units for different measurements
+function getUnit(label) {
+    switch (label) {
+        case 'Depth':
+            return ' cm';
+        case 'Temperature':
+            return ' °C';
+        case 'Turbidity':
+            return ' NTU';
+        default:
+            return '';
+    }
+}
+
 // Helper function to get chart colors
 function getChartColor(label) {
     switch (label) {
@@ -60,7 +74,7 @@ const chartConfig = {
                             const [hours, minutes] = timePart.split('-');
                             return `${hours}:${minutes} WIB`;
                         }
-                        return context[0].label + ' WIB';
+                        return `${context[0].label}:00 WIB`;
                     },
                     label: function(context) {
                         if (context.raw === null) return `${context.dataset.label}: No data`;
@@ -79,17 +93,16 @@ const chartConfig = {
                     drawBorder: false
                 },
                 ticks: {
-                    callback: function(value, index, values) {
-                        // Show even hours on x-axis
-                        const hour = Math.floor(index / 30) * 2; // Adjust divisor based on your data frequency
-                        return hour % 2 === 0 ? hour.toString().padStart(2, '0') : '';
-                    },
+                    stepSize: 2,
                     maxRotation: 0,
+                    autoSkip: false,
+                    callback: function(value) {
+                        return value.toString().padStart(2, '0');
+                    },
                     color: '#666',
                     font: {
                         size: 11
-                    },
-                    autoSkip: false
+                    }
                 },
                 border: {
                     display: true,
@@ -119,6 +132,7 @@ const chartConfig = {
     }
 };
 
+// Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
@@ -160,61 +174,55 @@ document.addEventListener('DOMContentLoaded', function() {
 function initializeCharts() {
     const chartHeight = '250px';
 
-    // Set height for chart containers
     document.querySelectorAll('.chart-container').forEach(container => {
         container.style.height = chartHeight;
     });
 
-    // Initialize Depth Chart
+    // Initialize each chart with common configuration
+    const commonConfig = {
+        labels: Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')),
+        datasets: [{
+            data: [],
+            timestamps: [],
+            tension: 0.1,
+            fill: false,
+            pointRadius: 3,
+            borderWidth: 1.5
+        }]
+    };
+
     depthChart = new Chart(document.getElementById('depthChart').getContext('2d'), {
         ...chartConfig,
         data: {
-            labels: Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')),
+            ...commonConfig,
             datasets: [{
+                ...commonConfig.datasets[0],
                 label: 'Depth',
-                data: [],
-                timestamps: [],
-                borderColor: '#1a73e8',
-                tension: 0.1,
-                fill: false,
-                pointRadius: 0,
-                borderWidth: 1.5
+                borderColor: getChartColor('Depth')
             }]
         }
     });
 
-    // Initialize Temperature Chart
     temperatureChart = new Chart(document.getElementById('temperatureChart').getContext('2d'), {
         ...chartConfig,
         data: {
-            labels: Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')),
+            ...commonConfig,
             datasets: [{
+                ...commonConfig.datasets[0],
                 label: 'Temperature',
-                data: [],
-                timestamps: [],
-                borderColor: '#ea4335',
-                tension: 0.1,
-                fill: false,
-                pointRadius: 0,
-                borderWidth: 1.5
+                borderColor: getChartColor('Temperature')
             }]
         }
     });
 
-    // Initialize Turbidity Chart
     turbidityChart = new Chart(document.getElementById('turbidityChart').getContext('2d'), {
         ...chartConfig,
         data: {
-            labels: Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')),
+            ...commonConfig,
             datasets: [{
+                ...commonConfig.datasets[0],
                 label: 'Turbidity',
-                data: [],
-                timestamps: [],
-                borderColor: '#34a853',
-                tension: 0.1,
-                fill: false,
-                pointRadius: 0,
-                borderWidth: 1.5
+                borderColor: getChartColor('Turbidity')
             }]
         }
     });
@@ -238,7 +246,7 @@ function startDataListening(database) {
                 // Convert the data to array with timestamp from the key
                 globalData = Object.entries(data)
                     .map(([key, value]) => ({
-                        timestamp: key, // Use the key as timestamp
+                        timestamp: key,
                         depth: parseFloat(value?.depth) || 0,
                         temperature: parseFloat(value?.temperature) || 0,
                         turbidity_ntu: parseFloat(value?.turbidity_ntu) || 0
@@ -320,36 +328,38 @@ function filterAndDisplayData() {
 }
 
 function updateCharts(data) {
-    // Sort data by timestamp
-    const sortedData = data.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+    // Create 24-hour array for labels
+    const labels = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0'));
     
-    // Prepare data for charts
-    const chartData = {
-        depth: {
-            data: sortedData.map(item => item.depth),
-            timestamps: sortedData.map(item => item.timestamp)
-        },
-        temperature: {
-            data: sortedData.map(item => item.temperature),
-            timestamps: sortedData.map(item => item.timestamp)
-        },
-        turbidity: {
-            data: sortedData.map(item => item.turbidity_ntu),
-            timestamps: sortedData.map(item => item.timestamp)
-        }
+    // Map data points to their corresponding hour slots
+    const mappedData = {
+        depth: new Array(24).fill(null),
+        temperature: new Array(24).fill(null),
+        turbidity: new Array(24).fill(null),
+        timestamps: new Array(24).fill(null)
     };
 
-    // Create labels for all data points (will use these for tooltips only)
-    const labels = sortedData.map(item => {
-        const [_, timePart] = item.timestamp.split('_');
-        const [hours, minutes] = timePart.split('-');
-        return `${hours}:${minutes}`;
+    data.forEach(item => {
+        const hour = parseInt(item.timestamp.split('_')[1].split('-')[0]);
+        mappedData.depth[hour] = item.depth;
+        mappedData.temperature[hour] = item.temperature;
+        mappedData.turbidity[hour] = item.turbidity_ntu;
+        mappedData.timestamps[hour] = item.timestamp;
     });
 
     // Update each chart
-    updateSingleChart(depthChart, labels, chartData.depth, 'Depth');
-    updateSingleChart(temperatureChart, labels, chartData.temperature, 'Temperature');
-    updateSingleChart(turbidityChart, labels, chartData.turbidity, 'Turbidity');
+    updateSingleChart(depthChart, labels, {
+        data: mappedData.depth,
+        timestamps: mappedData.timestamps
+    }, 'Depth');
+    updateSingleChart(temperatureChart, labels, {
+        data: mappedData.temperature,
+        timestamps: mappedData.timestamps
+    }, 'Temperature');
+    updateSingleChart(turbidityChart, labels, {
+        data: mappedData.turbidity,
+        timestamps: mappedData.timestamps
+    }, 'Turbidity');
 }
 
 function updateSingleChart(chart, labels, data, label) {
@@ -361,7 +371,7 @@ function updateSingleChart(chart, labels, data, label) {
         borderColor: getChartColor(label),
         tension: 0.1,
         fill: false,
-        pointRadius: 3, // Make points visible
+        pointRadius: 3,
         borderWidth: 1.5
     };
     chart.update();
@@ -395,6 +405,7 @@ function formatTimestamp(timestamp) {
 function changeDate() {
     filterAndDisplayData();
 }
+
 function downloadData() {
     if (globalData.length === 0) return;
 
