@@ -57,8 +57,8 @@ const chartConfig = {
                         const timestamp = context[0].dataset.timestamps?.[context[0].dataIndex];
                         if (timestamp) {
                             const [_, timePart] = timestamp.split('_');
-                            const [hours, minutes] = timePart.split('-');
-                            return `${hours}:${minutes} WIB`;
+                            const [hours, minutes, seconds] = timePart.split('-');
+                            return `${hours}:${minutes} WIB`;  // Show exact time
                         }
                         return `${context[0].label}:00 WIB`;
                     },
@@ -67,8 +67,13 @@ const chartConfig = {
                         const value = typeof context.raw === 'number' ? context.raw.toFixed(1) : context.raw;
                         const unit = getUnit(context.dataset.label);
                         return `${context.dataset.label}: ${value}${unit}`;
+                    },
+                    // Optional: Remove any padding between title and label
+                    labelTextColor: function(context) {
+                        return '#000000';
                     }
-                }
+                },
+                titleMarginBottom: 4  // Adjust spacing between title and content
             }
         },
         scales: {
