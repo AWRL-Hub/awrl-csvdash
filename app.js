@@ -211,24 +211,17 @@ function startDataListening(database) {
             }
 
             try {
-                // Convert object to array and sort by timestamp
+                // Convert the data to array with timestamp from the key
                 globalData = Object.entries(data)
                     .map(([key, value]) => ({
-                        timestamp: value.timestamp || '',
-                        depth: parseFloat(value.depth) || 0,
-                        temperature: parseFloat(value.temperature) || 0,
-                        turbidity_ntu: parseFloat(value.turbidity_ntu) || 0
+                        timestamp: key, // Use the key as timestamp
+                        depth: parseFloat(value?.depth) || 0,
+                        temperature: parseFloat(value?.temperature) || 0,
+                        turbidity_ntu: parseFloat(value?.turbidity_ntu) || 0
                     }))
-                    .filter(item => item.timestamp) // Remove entries with empty timestamps
-                    .sort((a, b) => {
-                        // Parse timestamps safely
-                        const dateA = parseTimestamp(a.timestamp);
-                        const dateB = parseTimestamp(b.timestamp);
-                        return dateA - dateB;
-                    });
+                    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 
-                // Update available dates
-                updateAvailableDates(globalData);
+                console.log('Processed data length:', globalData.length);
 
                 if (globalData.length > 0) {
                     // Update latest values
@@ -239,11 +232,13 @@ function startDataListening(database) {
                     document.getElementById('lastUpdate').textContent = formatTimestamp(latest.timestamp);
                     document.getElementById('connectionStatus').textContent = 'Connected - Data Updated';
 
-                    // Filter and display data for the selected date
+                    // Update available dates
+                    updateAvailableDates(globalData);
+
+                    // Filter and display data for selected date
                     filterAndDisplayData();
                 }
 
-                console.log('Data successfully processed and displayed');
             } catch (error) {
                 console.error('Error processing data:', error);
                 document.getElementById('connectionStatus').textContent = 'Error processing data';
@@ -256,53 +251,58 @@ function startDataListening(database) {
     );
 }
 
+function formatTimestamp(timestamp) {
+    try {
+        if (!timestamp) return '-';
+        
+        // Parse the timestamp format: 2024-12-03_03-18-51
+        const [datePart, timePart] = timestamp.split('_');
+        if (!datePart || !timePart) return '-';
+
+        const [year, month, day] = datePart.split('-');
+        const [hours, minutes, seconds] = timePart.split('-');
+
+        return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+    } catch (error) {
+        console.error('Error formatting timestamp:', error);
+        return '-';
+    }
+}
+
 function updateAvailableDates(data) {
     availableDates.clear();
     data.forEach(item => {
-        const date = item.timestamp.split('_')[0]; // Get date part only
-        availableDates.add(date);
+        try {
+            if (item.timestamp) {
+                const datePart = item.timestamp.split('_')[0];
+                if (datePart) {
+                    availableDates.add(datePart);
+                }
+            }
+        } catch (error) {
+            console.error('Error updating available dates:', error);
+        }
     });
     
-    // Update datepicker
     const datePicker = document.getElementById('datePicker');
-    
-    // Convert Set to Array and sort
     const dates = Array.from(availableDates).sort();
     
-    // Update datepicker attributes
     if (dates.length > 0) {
         datePicker.min = dates[0];
         datePicker.max = dates[dates.length - 1];
         
-        // If current selected date is not in available dates, select the latest date
         if (!availableDates.has(datePicker.value)) {
             datePicker.value = dates[dates.length - 1];
         }
     }
 }
 
-function parseTimestamp(timestamp) {
-    try {
-        if (!timestamp || typeof timestamp !== 'string') return new Date(0);
-        
-        const [datePart, timePart] = timestamp.split('_');
-        if (!datePart || !timePart) return new Date(0);
-        
-        const [year, month, day] = datePart.split('-').map(num => parseInt(num, 10));
-        const [hours, minutes, seconds] = timePart.split('-').map(num => parseInt(num, 10));
-        
-        return new Date(year, month - 1, day, hours, minutes, seconds);
-    } catch (error) {
-        console.error('Error parsing timestamp:', error);
-        return new Date(0);
-    }
-}
-
 function filterAndDisplayData() {
     const selectedDate = document.getElementById('datePicker').value;
     
-    // Filter data for selected date
-    const filteredData = globalData.filter(item => item.timestamp.startsWith(selectedDate));
+    const filteredData = globalData.filter(item => 
+        item.timestamp && item.timestamp.startsWith(selectedDate)
+    );
     
     if (filteredData.length > 0) {
         updateCharts(filteredData);
@@ -314,9 +314,12 @@ function filterAndDisplayData() {
 }
 
 function updateCharts(data) {
-    // Group data by hour for better visualization
+    // Create 24-hour array for labels
+    const labels = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0'));
+    
+    // Group data by hour
     const hourlyData = data.reduce((acc, item) => {
-        const hour = parseTimestamp(item.timestamp).getHours();
+        const hour = item.timestamp.split('_')[1].split('-')[0]; // Get hour from timestamp
         if (!acc[hour]) {
             acc[hour] = {
                 depth: [],
@@ -331,18 +334,17 @@ function updateCharts(data) {
     }, {});
 
     // Calculate averages for each hour
-    const labels = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0'));
     const chartData = {
         depth: labels.map(hour => {
-            const values = hourlyData[parseInt(hour)]?.depth || [];
+            const values = hourlyData[hour]?.depth || [];
             return values.length ? (values.reduce((a, b) => a + b, 0) / values.length) : null;
         }),
         temperature: labels.map(hour => {
-            const values = hourlyData[parseInt(hour)]?.temperature || [];
+            const values = hourlyData[hour]?.temperature || [];
             return values.length ? (values.reduce((a, b) => a + b, 0) / values.length) : null;
         }),
         turbidity: labels.map(hour => {
-            const values = hourlyData[parseInt(hour)]?.turbidity || [];
+            const values = hourlyData[hour]?.turbidity || [];
             return values.length ? (values.reduce((a, b) => a + b, 0) / values.length) : null;
         })
     };
@@ -361,13 +363,14 @@ function updateSingleChart(chart, labels, data, label) {
 }
 
 function clearCharts() {
-    depthChart.data.datasets[0].data = [];
-    temperatureChart.data.datasets[0].data = [];
-    turbidityChart.data.datasets[0].data = [];
+    const emptyData = Array(24).fill(null);
+    const labels = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0'));
     
-    depthChart.update();
-    temperatureChart.update();
-    turbidityChart.update();
+    [depthChart, temperatureChart, turbidityChart].forEach(chart => {
+        chart.data.labels = labels;
+        chart.data.datasets[0].data = emptyData;
+        chart.update();
+    });
 }
 
 function formatTimestamp(timestamp) {
