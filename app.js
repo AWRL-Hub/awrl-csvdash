@@ -16,6 +16,20 @@ let globalData = [];
 const SPECIFIC_UID = "VI0NhvakSSZz3Sb3ZB44TOHBEWB3";
 let availableDates = new Set();
 
+// Helper function to get units for different measurements
+function getUnit(label) {
+    switch (label) {
+        case 'Depth':
+            return ' cm';
+        case 'Temperature':
+            return ' °C';
+        case 'Turbidity':
+            return ' NTU';
+        default:
+            return '';
+    }
+}
+
 // Chart configuration
 const chartConfig = {
     type: 'line',
@@ -40,12 +54,19 @@ const chartConfig = {
                 displayColors: false,
                 callbacks: {
                     title: function(context) {
+                        const timestamp = context[0].dataset.timestamps?.[context[0].dataIndex];
+                        if (timestamp) {
+                            const [_, timePart] = timestamp.split('_');
+                            const [hours, minutes] = timePart.split('-');
+                            return `${hours}:${minutes} WIB`;
+                        }
                         return `${context[0].label}:00 WIB`;
                     },
                     label: function(context) {
                         if (context.raw === null) return `${context.dataset.label}: No data`;
                         const value = typeof context.raw === 'number' ? context.raw.toFixed(1) : context.raw;
-                        return `${context.dataset.label}: ${value}`;
+                        const unit = getUnit(context.dataset.label);
+                        return `${context.dataset.label}: ${value}${unit}`;
                     }
                 }
             }
@@ -58,12 +79,11 @@ const chartConfig = {
                     drawBorder: false
                 },
                 ticks: {
-                    stepSize: 2,
-                    maxRotation: 0,
-                    autoSkip: false,
                     callback: function(value) {
-                        return value.toString().padStart(2, '0');
+                        const hour = value.toString().padStart(2, '0');
+                        return parseInt(hour) % 2 === 0 ? hour : '';
                     },
+                    maxRotation: 0,
                     color: '#666',
                     font: {
                         size: 11
@@ -97,7 +117,6 @@ const chartConfig = {
     }
 };
 
-// Initialize charts when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
@@ -152,6 +171,7 @@ function initializeCharts() {
             datasets: [{
                 label: 'Depth',
                 data: [],
+                timestamps: [],
                 borderColor: '#1a73e8',
                 tension: 0.1,
                 fill: false,
@@ -169,6 +189,7 @@ function initializeCharts() {
             datasets: [{
                 label: 'Temperature',
                 data: [],
+                timestamps: [],
                 borderColor: '#ea4335',
                 tension: 0.1,
                 fill: false,
@@ -186,6 +207,7 @@ function initializeCharts() {
             datasets: [{
                 label: 'Turbidity',
                 data: [],
+                timestamps: [],
                 borderColor: '#34a853',
                 tension: 0.1,
                 fill: false,
@@ -251,24 +273,6 @@ function startDataListening(database) {
     );
 }
 
-function formatTimestamp(timestamp) {
-    try {
-        if (!timestamp) return '-';
-        
-        // Parse the timestamp format: 2024-12-03_03-18-51
-        const [datePart, timePart] = timestamp.split('_');
-        if (!datePart || !timePart) return '-';
-
-        const [year, month, day] = datePart.split('-');
-        const [hours, minutes, seconds] = timePart.split('-');
-
-        return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
-    } catch (error) {
-        console.error('Error formatting timestamp:', error);
-        return '-';
-    }
-}
-
 function updateAvailableDates(data) {
     availableDates.clear();
     data.forEach(item => {
@@ -324,29 +328,40 @@ function updateCharts(data) {
             acc[hour] = {
                 depth: [],
                 temperature: [],
-                turbidity: []
+                turbidity: [],
+                timestamps: []
             };
         }
         acc[hour].depth.push(item.depth);
         acc[hour].temperature.push(item.temperature);
         acc[hour].turbidity.push(item.turbidity_ntu);
+        acc[hour].timestamps.push(item.timestamp);
         return acc;
     }, {});
 
     // Calculate averages for each hour
     const chartData = {
-        depth: labels.map(hour => {
-            const values = hourlyData[hour]?.depth || [];
-            return values.length ? (values.reduce((a, b) => a + b, 0) / values.length) : null;
-        }),
-        temperature: labels.map(hour => {
-            const values = hourlyData[hour]?.temperature || [];
-            return values.length ? (values.reduce((a, b) => a + b, 0) / values.length) : null;
-        }),
-        turbidity: labels.map(hour => {
-            const values = hourlyData[hour]?.turbidity || [];
-            return values.length ? (values.reduce((a, b) => a + b, 0) / values.length) : null;
-        })
+        depth: {
+            data: labels.map(hour => {
+                const values = hourlyData[hour]?.depth || [];
+                return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+            }),
+            timestamps: labels.map(hour => hourlyData[hour]?.timestamps?.[0] || null)
+        },
+        temperature: {
+            data: labels.map(hour => {
+                const values = hourlyData[hour]?.temperature || [];
+                return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+            }),
+            timestamps: labels.map(hour => hourlyData[hour]?.timestamps?.[0] || null)
+        },
+        turbidity: {
+            data: labels.map(hour => {
+                const values = hourlyData[hour]?.turbidity || [];
+                return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+            }),
+            timestamps: labels.map(hour => hourlyData[hour]?.timestamps?.[0] || null)
+        }
     };
 
     // Update each chart
@@ -357,7 +372,8 @@ function updateCharts(data) {
 
 function updateSingleChart(chart, labels, data, label) {
     chart.data.labels = labels;
-    chart.data.datasets[0].data = data;
+    chart.data.datasets[0].data = data.data;
+    chart.data.datasets[0].timestamps = data.timestamps; // Store timestamps for tooltip
     chart.data.datasets[0].label = label;
     chart.update();
 }
@@ -369,6 +385,7 @@ function clearCharts() {
     [depthChart, temperatureChart, turbidityChart].forEach(chart => {
         chart.data.labels = labels;
         chart.data.datasets[0].data = emptyData;
+        chart.data.datasets[0].timestamps = emptyData;
         chart.update();
     });
 }
@@ -389,7 +406,6 @@ function formatTimestamp(timestamp) {
 function changeDate() {
     filterAndDisplayData();
 }
-
 function downloadData() {
     if (globalData.length === 0) return;
 
@@ -415,4 +431,5 @@ function downloadData() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
 }
