@@ -16,17 +16,17 @@ let globalData = [];
 const SPECIFIC_UID = "VI0NhvakSSZz3Sb3ZB44TOHBEWB3";
 let availableDates = new Set();
 
-// Helper function to get units for different measurements
-function getUnit(label) {
+// Helper function to get chart colors
+function getChartColor(label) {
     switch (label) {
         case 'Depth':
-            return ' cm';
+            return '#1a73e8';
         case 'Temperature':
-            return ' °C';
+            return '#ea4335';
         case 'Turbidity':
-            return ' NTU';
+            return '#34a853';
         default:
-            return '';
+            return '#000000';
     }
 }
 
@@ -57,23 +57,18 @@ const chartConfig = {
                         const timestamp = context[0].dataset.timestamps?.[context[0].dataIndex];
                         if (timestamp) {
                             const [_, timePart] = timestamp.split('_');
-                            const [hours, minutes, seconds] = timePart.split('-');
-                            return `${hours}:${minutes} WIB`;  // Show exact time
+                            const [hours, minutes] = timePart.split('-');
+                            return `${hours}:${minutes} WIB`;
                         }
-                        return `${context[0].label}:00 WIB`;
+                        return context[0].label + ' WIB';
                     },
                     label: function(context) {
                         if (context.raw === null) return `${context.dataset.label}: No data`;
                         const value = typeof context.raw === 'number' ? context.raw.toFixed(1) : context.raw;
                         const unit = getUnit(context.dataset.label);
                         return `${context.dataset.label}: ${value}${unit}`;
-                    },
-                    // Optional: Remove any padding between title and label
-                    labelTextColor: function(context) {
-                        return '#000000';
                     }
-                },
-                titleMarginBottom: 4  // Adjust spacing between title and content
+                }
             }
         },
         scales: {
@@ -84,15 +79,17 @@ const chartConfig = {
                     drawBorder: false
                 },
                 ticks: {
-                    callback: function(value) {
-                        const hour = value.toString().padStart(2, '0');
-                        return parseInt(hour) % 2 === 0 ? hour : '';
+                    callback: function(value, index, values) {
+                        // Show even hours on x-axis
+                        const hour = Math.floor(index / 30) * 2; // Adjust divisor based on your data frequency
+                        return hour % 2 === 0 ? hour.toString().padStart(2, '0') : '';
                     },
                     maxRotation: 0,
                     color: '#666',
                     font: {
                         size: 11
-                    }
+                    },
+                    autoSkip: false
                 },
                 border: {
                     display: true,
@@ -323,51 +320,31 @@ function filterAndDisplayData() {
 }
 
 function updateCharts(data) {
-    // Create 24-hour array for labels
-    const labels = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0'));
+    // Sort data by timestamp
+    const sortedData = data.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
     
-    // Group data by hour
-    const hourlyData = data.reduce((acc, item) => {
-        const hour = item.timestamp.split('_')[1].split('-')[0]; // Get hour from timestamp
-        if (!acc[hour]) {
-            acc[hour] = {
-                depth: [],
-                temperature: [],
-                turbidity: [],
-                timestamps: []
-            };
-        }
-        acc[hour].depth.push(item.depth);
-        acc[hour].temperature.push(item.temperature);
-        acc[hour].turbidity.push(item.turbidity_ntu);
-        acc[hour].timestamps.push(item.timestamp);
-        return acc;
-    }, {});
-
-    // Calculate averages for each hour
+    // Prepare data for charts
     const chartData = {
         depth: {
-            data: labels.map(hour => {
-                const values = hourlyData[hour]?.depth || [];
-                return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
-            }),
-            timestamps: labels.map(hour => hourlyData[hour]?.timestamps?.[0] || null)
+            data: sortedData.map(item => item.depth),
+            timestamps: sortedData.map(item => item.timestamp)
         },
         temperature: {
-            data: labels.map(hour => {
-                const values = hourlyData[hour]?.temperature || [];
-                return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
-            }),
-            timestamps: labels.map(hour => hourlyData[hour]?.timestamps?.[0] || null)
+            data: sortedData.map(item => item.temperature),
+            timestamps: sortedData.map(item => item.timestamp)
         },
         turbidity: {
-            data: labels.map(hour => {
-                const values = hourlyData[hour]?.turbidity || [];
-                return values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
-            }),
-            timestamps: labels.map(hour => hourlyData[hour]?.timestamps?.[0] || null)
+            data: sortedData.map(item => item.turbidity_ntu),
+            timestamps: sortedData.map(item => item.timestamp)
         }
     };
+
+    // Create labels for all data points (will use these for tooltips only)
+    const labels = sortedData.map(item => {
+        const [_, timePart] = item.timestamp.split('_');
+        const [hours, minutes] = timePart.split('-');
+        return `${hours}:${minutes}`;
+    });
 
     // Update each chart
     updateSingleChart(depthChart, labels, chartData.depth, 'Depth');
@@ -377,9 +354,16 @@ function updateCharts(data) {
 
 function updateSingleChart(chart, labels, data, label) {
     chart.data.labels = labels;
-    chart.data.datasets[0].data = data.data;
-    chart.data.datasets[0].timestamps = data.timestamps; // Store timestamps for tooltip
-    chart.data.datasets[0].label = label;
+    chart.data.datasets[0] = {
+        label: label,
+        data: data.data,
+        timestamps: data.timestamps,
+        borderColor: getChartColor(label),
+        tension: 0.1,
+        fill: false,
+        pointRadius: 3, // Make points visible
+        borderWidth: 1.5
+    };
     chart.update();
 }
 
