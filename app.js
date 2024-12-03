@@ -56,7 +56,7 @@ function formatTimestamp(timestamp) {
     }
 }
 
-// Chart configuration
+// Base chart configuration
 const chartConfig = {
     type: 'line',
     options: {
@@ -64,7 +64,8 @@ const chartConfig = {
         maintainAspectRatio: false,
         interaction: {
             intersect: false,
-            mode: 'index',
+            mode: 'nearest',
+            axis: 'x'
         },
         plugins: {
             legend: {
@@ -95,6 +96,18 @@ const chartConfig = {
                         return `${context.dataset.label}: ${value}${unit}`;
                     }
                 }
+            }
+        },
+        elements: {
+            point: {
+                radius: 0,
+                hoverRadius: 0,
+                hitRadius: 0
+            },
+            line: {
+                tension: 0.4,
+                borderWidth: 2,
+                fill: false
             }
         },
         scales: {
@@ -155,19 +168,25 @@ function initializeCharts() {
         container.style.height = chartHeight;
     });
 
+    const baseDatasetConfig = {
+        data: [],
+        timestamps: [],
+        tension: 0.4,
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        pointHitRadius: 0,
+        borderWidth: 2
+    };
+
     // Initialize charts with basic configuration
     depthChart = new Chart(document.getElementById('depthChart').getContext('2d'), {
         ...chartConfig,
         data: {
             datasets: [{
+                ...baseDatasetConfig,
                 label: 'Depth',
-                data: [],
-                timestamps: [],
-                borderColor: getChartColor('Depth'),
-                tension: 0.4,
-                fill: false,
-                pointRadius: 0,
-                borderWidth: 1.5
+                borderColor: getChartColor('Depth')
             }]
         }
     });
@@ -176,14 +195,9 @@ function initializeCharts() {
         ...chartConfig,
         data: {
             datasets: [{
+                ...baseDatasetConfig,
                 label: 'Temperature',
-                data: [],
-                timestamps: [],
-                borderColor: getChartColor('Temperature'),
-                tension: 0.4,
-                fill: false,
-                pointRadius: 0,
-                borderWidth: 2
+                borderColor: getChartColor('Temperature')
             }]
         }
     });
@@ -192,14 +206,9 @@ function initializeCharts() {
         ...chartConfig,
         data: {
             datasets: [{
+                ...baseDatasetConfig,
                 label: 'Turbidity',
-                data: [],
-                timestamps: [],
-                borderColor: getChartColor('Turbidity'),
-                tension: 0.1,
-                fill: false,
-                pointRadius: 3,
-                borderWidth: 1.5
+                borderColor: getChartColor('Turbidity')
             }]
         }
     });
@@ -231,27 +240,34 @@ function updateCharts(data) {
 }
 
 function updateSingleChart(chart, data, label, valueGetter) {
+    const baseDatasetConfig = {
+        tension: 0.4,
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        pointHitRadius: 0,
+        borderWidth: 2
+    };
+
     chart.data.datasets[0] = {
+        ...baseDatasetConfig,
         label: label,
+        borderColor: getChartColor(label),
         data: data.map(d => ({
             x: d.xPosition,
             y: valueGetter(d)
         })),
-        timestamps: data.map(d => d.timestamp),
-        borderColor: getChartColor(label),
-        tension: 0.1,
-        fill: false,
-        pointRadius: 3,
-        borderWidth: 1.5
+        timestamps: data.map(d => d.timestamp)
     };
-    chart.update();
+    
+    chart.update('none'); // Use 'none' mode for smoother updates
 }
 
 function clearCharts() {
     [depthChart, temperatureChart, turbidityChart].forEach(chart => {
         chart.data.datasets[0].data = [];
         chart.data.datasets[0].timestamps = [];
-        chart.update();
+        chart.update('none');
     });
 }
 
