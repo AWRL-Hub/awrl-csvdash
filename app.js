@@ -56,13 +56,7 @@ const chartConfig = {
         },
         plugins: {
             legend: {
-                display: true,
-                position: 'bottom',
-                labels: {
-                    usePointStyle: true,
-                    padding: 20,
-                    color: '#666'
-                }
+                display: false  // This removes the legend
             },
             tooltip: {
                 backgroundColor: 'white',
@@ -71,8 +65,7 @@ const chartConfig = {
                 borderColor: '#ddd',
                 borderWidth: 1,
                 padding: 10,
-                displayColors: true,
-                usePointStyle: true,
+                displayColors: false,
                 callbacks: {
                     title: function(context) {
                         const timestamp = context[0].dataset.timestamps?.[context[0].dataIndex];
@@ -81,18 +74,22 @@ const chartConfig = {
                             const [hours, minutes] = timePart.split('-');
                             return `${hours}:${minutes} WIB`;
                         }
-                        return `${context[0].label}:00 WIB`;
+                        return context[0].label;
                     },
                     label: function(context) {
-                        if (context.raw === null) return `${context.dataset.label}: No data`;
-                        const value = typeof context.raw === 'number' ? context.raw.toFixed(1) : context.raw;
-                        return `${context.dataset.label}: ${value}°C`;
+                        if (context.raw === null || context.raw.y === null) return `${context.dataset.label}: No data`;
+                        const value = typeof context.raw.y === 'number' ? context.raw.y.toFixed(1) : context.raw.y;
+                        const unit = getUnit(context.dataset.label);
+                        return `${context.dataset.label}: ${value}${unit}`;
                     }
                 }
             }
         },
         scales: {
             x: {
+                type: 'linear',
+                min: 0,
+                max: 23,
                 display: true,
                 grid: {
                     display: false,
@@ -103,8 +100,7 @@ const chartConfig = {
                     maxRotation: 0,
                     autoSkip: false,
                     callback: function(value) {
-                        const hour = value.toString().padStart(2, '0');
-                        return parseInt(hour) % 2 === 0 ? hour : '';
+                        return value.toString().padStart(2, '0');
                     },
                     color: '#666',
                     font: {
@@ -139,7 +135,6 @@ const chartConfig = {
     }
 };
 
-// Initialize everything when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
@@ -185,298 +180,102 @@ function initializeCharts() {
         container.style.height = chartHeight;
     });
 
-    // Initialize Temperature Chart
-    temperatureChart = new Chart(document.getElementById('temperatureChart').getContext('2d'), {
-        ...chartConfig,
-        data: {
-            labels: Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')),
-            datasets: [
-                {
-                    label: 'Temperature',
-                    data: [],
-                    timestamps: [],
-                    borderColor: '#ea4335',
-                    tension: 0.1,
-                    fill: false,
-                    pointRadius: 3,
-                    borderWidth: 1.5
-                },
-                {
-                    label: 'Dewpoint',
-                    data: [],
-                    timestamps: [],
-                    borderColor: '#34a853',
-                    tension: 0.1,
-                    fill: false,
-                    pointRadius: 3,
-                    borderWidth: 1.5
-                }
-            ]
-        }
-    });
-
-    // Initialize Depth Chart
+    // Initialize charts with basic configuration
     depthChart = new Chart(document.getElementById('depthChart').getContext('2d'), {
         ...chartConfig,
         data: {
-            labels: Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')),
-            datasets: [
-                {
-                    label: 'Water Level',
-                    data: [],
-                    timestamps: [],
-                    borderColor: '#1a73e8',
-                    tension: 0.1,
-                    fill: false,
-                    pointRadius: 3,
-                    borderWidth: 1.5
-                },
-                {
-                    label: 'Average Level',
-                    data: [],
-                    timestamps: [],
-                    borderColor: '#fbbc04',
-                    tension: 0.1,
-                    fill: false,
-                    pointRadius: 3,
-                    borderWidth: 1.5,
-                    borderDash: [5, 5]  // Makes this line dashed
-                }
-            ]
+            datasets: [{
+                label: 'Depth',
+                data: [],
+                timestamps: [],
+                borderColor: getChartColor('Depth'),
+                tension: 0.1,
+                fill: false,
+                pointRadius: 3,
+                borderWidth: 1.5
+            }]
         }
     });
 
-    // Initialize Turbidity Chart
+    temperatureChart = new Chart(document.getElementById('temperatureChart').getContext('2d'), {
+        ...chartConfig,
+        data: {
+            datasets: [{
+                label: 'Temperature',
+                data: [],
+                timestamps: [],
+                borderColor: getChartColor('Temperature'),
+                tension: 0.1,
+                fill: false,
+                pointRadius: 3,
+                borderWidth: 1.5
+            }]
+        }
+    });
+
     turbidityChart = new Chart(document.getElementById('turbidityChart').getContext('2d'), {
         ...chartConfig,
         data: {
-            labels: Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0')),
-            datasets: [
-                {
-                    label: 'Turbidity',
-                    data: [],
-                    timestamps: [],
-                    borderColor: '#34a853',
-                    tension: 0.1,
-                    fill: false,
-                    pointRadius: 3,
-                    borderWidth: 1.5
-                },
-                {
-                    label: 'Clarity Index',
-                    data: [],
-                    timestamps: [],
-                    borderColor: '#673ab7',
-                    tension: 0.1,
-                    fill: false,
-                    pointRadius: 3,
-                    borderWidth: 1.5
-                }
-            ]
+            datasets: [{
+                label: 'Turbidity',
+                data: [],
+                timestamps: [],
+                borderColor: getChartColor('Turbidity'),
+                tension: 0.1,
+                fill: false,
+                pointRadius: 3,
+                borderWidth: 1.5
+            }]
         }
     });
-}
-
-function startDataListening(database) {
-    const dataPath = `/AWRLData/${SPECIFIC_UID}/Record`;
-    console.log('Attempting to access data at path:', dataPath);
-
-    database.ref(dataPath).on('value', 
-        (snapshot) => {
-            console.log('Data received');
-            const data = snapshot.val();
-            if (!data) {
-                console.log('No data available at this path');
-                document.getElementById('connectionStatus').textContent = 'No data available';
-                return;
-            }
-
-            try {
-                // Convert the data to array with timestamp from the key
-                globalData = Object.entries(data)
-                    .map(([key, value]) => ({
-                        timestamp: key,
-                        depth: parseFloat(value?.depth) || 0,
-                        temperature: parseFloat(value?.temperature) || 0,
-                        turbidity_ntu: parseFloat(value?.turbidity_ntu) || 0
-                    }))
-                    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
-
-                console.log('Processed data length:', globalData.length);
-
-                if (globalData.length > 0) {
-                    // Update latest values
-                    const latest = globalData[globalData.length - 1];
-                    document.getElementById('depthValue').textContent = latest.depth.toFixed(1);
-                    document.getElementById('temperatureValue').textContent = latest.temperature.toFixed(1);
-                    document.getElementById('turbidityValue').textContent = latest.turbidity_ntu.toFixed(1);
-                    document.getElementById('lastUpdate').textContent = formatTimestamp(latest.timestamp);
-                    document.getElementById('connectionStatus').textContent = 'Connected - Data Updated';
-
-                    // Update available dates
-                    updateAvailableDates(globalData);
-
-                    // Filter and display data for selected date
-                    filterAndDisplayData();
-                }
-
-            } catch (error) {
-                console.error('Error processing data:', error);
-                document.getElementById('connectionStatus').textContent = 'Error processing data';
-            }
-        }, 
-        (error) => {
-            console.error('Database error:', error.code, error.message);
-            document.getElementById('connectionStatus').textContent = 'Error: ' + error.message;
-        }
-    );
-}
-
-function updateAvailableDates(data) {
-    availableDates.clear();
-    data.forEach(item => {
-        try {
-            if (item.timestamp) {
-                const datePart = item.timestamp.split('_')[0];
-                if (datePart) {
-                    availableDates.add(datePart);
-                }
-            }
-        } catch (error) {
-            console.error('Error updating available dates:', error);
-        }
-    });
-    
-    const datePicker = document.getElementById('datePicker');
-    const dates = Array.from(availableDates).sort();
-    
-    if (dates.length > 0) {
-        datePicker.min = dates[0];
-        datePicker.max = dates[dates.length - 1];
-        
-        if (!availableDates.has(datePicker.value)) {
-            datePicker.value = dates[dates.length - 1];
-        }
-    }
-}
-
-function filterAndDisplayData() {
-    const selectedDate = document.getElementById('datePicker').value;
-    
-    const filteredData = globalData.filter(item => 
-        item.timestamp && item.timestamp.startsWith(selectedDate)
-    );
-    
-    if (filteredData.length > 0) {
-        updateCharts(filteredData);
-        document.getElementById('dateInfo').textContent = `Showing data for ${selectedDate}`;
-    } else {
-        document.getElementById('dateInfo').textContent = `No data available for ${selectedDate}`;
-        clearCharts();
-    }
 }
 
 function updateCharts(data) {
-    // Create 24-hour array for labels
-    const labels = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0'));
+    // Sort data by timestamp
+    const sortedData = data.sort((a, b) => a.timestamp.localeCompare(b.timestamp));
     
-    // Map data points to their corresponding hour slots
-    const mappedData = {
-        depth: new Array(24).fill(null),
-        avgDepth: new Array(24).fill(null),
-        temperature: new Array(24).fill(null),
-        dewpoint: new Array(24).fill(null),
-        turbidity: new Array(24).fill(null),
-        clarityIndex: new Array(24).fill(null),
-        timestamps: new Array(24).fill(null)
-    };
-
-    // Calculate moving averages and additional metrics
-    data.forEach(item => {
-        const hour = parseInt(item.timestamp.split('_')[1].split('-')[0]);
-        mappedData.depth[hour] = item.depth;
-        mappedData.temperature[hour] = item.temperature;
-        mappedData.dewpoint[hour] = item.humidity ? calculateDewPoint(item.temperature, item.humidity) : null;
-        mappedData.turbidity[hour] = item.turbidity_ntu;
-        mappedData.timestamps[hour] = item.timestamp;
-
-        // Calculate clarity index (inverse of turbidity, scaled)
-        mappedData.clarityIndex[hour] = item.turbidity_ntu ? (100 - Math.min(item.turbidity_ntu * 2, 100)) : null;
+    // Create data points with exact positions
+    const chartData = sortedData.map(item => {
+        const [_, timePart] = item.timestamp.split('_');
+        const [hours, minutes] = timePart.split('-');
+        const xPosition = parseInt(hours) + (parseInt(minutes) / 60);
+        
+        return {
+            timestamp: item.timestamp,
+            xPosition: xPosition,
+            depth: item.depth,
+            temperature: item.temperature,
+            turbidity: item.turbidity_ntu
+        };
     });
-
-    // Calculate moving average for depth
-    for (let i = 0; i < 24; i++) {
-        if (mappedData.depth[i] !== null) {
-            let sum = 0;
-            let count = 0;
-            // Take 3 hours before and after if available
-            for (let j = Math.max(0, i - 3); j <= Math.min(23, i + 3); j++) {
-                if (mappedData.depth[j] !== null) {
-                    sum += mappedData.depth[j];
-                    count++;
-                }
-            }
-            mappedData.avgDepth[i] = count > 0 ? sum / count : null;
-        }
-    }
 
     // Update each chart
-    updateTemperatureChart(temperatureChart, labels, {
-        temperature: mappedData.temperature,
-        dewpoint: mappedData.dewpoint,
-        timestamps: mappedData.timestamps
-    });
-
-    updateDepthChart(depthChart, labels, {
-        depth: mappedData.depth,
-        avgDepth: mappedData.avgDepth,
-        timestamps: mappedData.timestamps
-    });
-
-    updateTurbidityChart(turbidityChart, labels, {
-        turbidity: mappedData.turbidity,
-        clarityIndex: mappedData.clarityIndex,
-        timestamps: mappedData.timestamps
-    });
+    updateSingleChart(depthChart, chartData, 'Depth', d => d.depth);
+    updateSingleChart(temperatureChart, chartData, 'Temperature', d => d.temperature);
+    updateSingleChart(turbidityChart, chartData, 'Turbidity', d => d.turbidity);
 }
 
-function updateTemperatureChart(chart, labels, data) {
-    chart.data.labels = labels;
-    chart.data.datasets[0].data = data.temperature;
-    chart.data.datasets[0].timestamps = data.timestamps;
-    chart.data.datasets[1].data = data.dewpoint;
-    chart.data.datasets[1].timestamps = data.timestamps;
-    chart.update();
-}
-
-function updateDepthChart(chart, labels, data) {
-    chart.data.labels = labels;
-    chart.data.datasets[0].data = data.depth;
-    chart.data.datasets[0].timestamps = data.timestamps;
-    chart.data.datasets[1].data = data.avgDepth;
-    chart.data.datasets[1].timestamps = data.timestamps;
-    chart.update();
-}
-
-function updateTurbidityChart(chart, labels, data) {
-    chart.data.labels = labels;
-    chart.data.datasets[0].data = data.turbidity;
-    chart.data.datasets[0].timestamps = data.timestamps;
-    chart.data.datasets[1].data = data.clarityIndex;
-    chart.data.datasets[1].timestamps = data.timestamps;
+function updateSingleChart(chart, data, label, valueGetter) {
+    chart.data.datasets[0] = {
+        label: label,
+        data: data.map(d => ({
+            x: d.xPosition,
+            y: valueGetter(d)
+        })),
+        timestamps: data.map(d => d.timestamp),
+        borderColor: getChartColor(label),
+        tension: 0.1,
+        fill: false,
+        pointRadius: 3,
+        borderWidth: 1.5
+    };
     chart.update();
 }
 
 function clearCharts() {
-    const emptyData = Array(24).fill(null);
-    const labels = Array.from({length: 24}, (_, i) => i.toString().padStart(2, '0'));
-    
     [depthChart, temperatureChart, turbidityChart].forEach(chart => {
-        chart.data.labels = labels;
-        chart.data.datasets.forEach(dataset => {
-            dataset.data = emptyData;
-            dataset.timestamps = emptyData;
-        });
+        chart.data.datasets[0].data = [];
+        chart.data.datasets[0].timestamps = [];
         chart.update();
     });
 }
