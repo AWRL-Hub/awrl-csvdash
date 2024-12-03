@@ -164,9 +164,9 @@ function initializeCharts() {
                 data: [],
                 timestamps: [],
                 borderColor: getChartColor('Depth'),
-                tension: 0.1,
+                tension: 0.4,
                 fill: false,
-                pointRadius: 3,
+                pointRadius: 0,
                 borderWidth: 1.5
             }]
         }
