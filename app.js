@@ -180,10 +180,10 @@ function initializeCharts() {
                 data: [],
                 timestamps: [],
                 borderColor: getChartColor('Temperature'),
-                tension: 0.1,
+                tension: 0.4,
                 fill: false,
-                pointRadius: 3,
-                borderWidth: 1.5
+                pointRadius: 0,
+                borderWidth: 2
             }]
         }
     });
