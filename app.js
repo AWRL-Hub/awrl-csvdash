@@ -173,6 +173,105 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('datePicker').value = today;
 });
 
+function startDataListening(database) {
+    const dataPath = `/AWRLData/${SPECIFIC_UID}/Record`;
+    console.log('Attempting to access data at path:', dataPath);
+
+    database.ref(dataPath).on('value', 
+        (snapshot) => {
+            console.log('Data received');
+            const data = snapshot.val();
+            if (!data) {
+                console.log('No data available at this path');
+                document.getElementById('connectionStatus').textContent = 'No data available';
+                return;
+            }
+
+            try {
+                // Convert the data to array with timestamp from the key
+                globalData = Object.entries(data)
+                    .map(([key, value]) => ({
+                        timestamp: key,
+                        depth: parseFloat(value?.depth) || 0,
+                        temperature: parseFloat(value?.temperature) || 0,
+                        turbidity_ntu: parseFloat(value?.turbidity_ntu) || 0
+                    }))
+                    .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+
+                console.log('Processed data length:', globalData.length);
+
+                if (globalData.length > 0) {
+                    // Update latest values
+                    const latest = globalData[globalData.length - 1];
+                    document.getElementById('depthValue').textContent = latest.depth.toFixed(1);
+                    document.getElementById('temperatureValue').textContent = latest.temperature.toFixed(1);
+                    document.getElementById('turbidityValue').textContent = latest.turbidity_ntu.toFixed(1);
+                    document.getElementById('lastUpdate').textContent = formatTimestamp(latest.timestamp);
+                    document.getElementById('connectionStatus').textContent = 'Connected - Data Updated';
+
+                    // Update available dates
+                    updateAvailableDates(globalData);
+
+                    // Filter and display data for selected date
+                    filterAndDisplayData();
+                }
+
+            } catch (error) {
+                console.error('Error processing data:', error);
+                document.getElementById('connectionStatus').textContent = 'Error processing data';
+            }
+        }, 
+        (error) => {
+            console.error('Database error:', error.code, error.message);
+            document.getElementById('connectionStatus').textContent = 'Error: ' + error.message;
+        }
+    );
+}
+
+function updateAvailableDates(data) {
+    availableDates.clear();
+    data.forEach(item => {
+        try {
+            if (item.timestamp) {
+                const datePart = item.timestamp.split('_')[0];
+                if (datePart) {
+                    availableDates.add(datePart);
+                }
+            }
+        } catch (error) {
+            console.error('Error updating available dates:', error);
+        }
+    });
+    
+    const datePicker = document.getElementById('datePicker');
+    const dates = Array.from(availableDates).sort();
+    
+    if (dates.length > 0) {
+        datePicker.min = dates[0];
+        datePicker.max = dates[dates.length - 1];
+        
+        if (!availableDates.has(datePicker.value)) {
+            datePicker.value = dates[dates.length - 1];
+        }
+    }
+}
+
+function filterAndDisplayData() {
+    const selectedDate = document.getElementById('datePicker').value;
+    
+    const filteredData = globalData.filter(item => 
+        item.timestamp && item.timestamp.startsWith(selectedDate)
+    );
+    
+    if (filteredData.length > 0) {
+        updateCharts(filteredData);
+        document.getElementById('dateInfo').textContent = `Showing data for ${selectedDate}`;
+    } else {
+        document.getElementById('dateInfo').textContent = `No data available for ${selectedDate}`;
+        clearCharts();
+    }
+}
+
 function initializeCharts() {
     const chartHeight = '250px';
 
